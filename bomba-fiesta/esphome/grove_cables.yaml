@@ -1,0 +1,68 @@
+# =====================================================================
+#  SOLO PARA LA VARIANTE CON HOME ASSISTANT (opción secundaria)
+#
+#  Este fichero NO se usa en la bomba de la fiesta: ahí la lógica va
+#  entera dentro del firmware (`standalone.yaml`), que ya define estos
+#  mismos sensores. Esto es solo el trozo de ESPHome que haría falta si
+#  algún día se monta la variante que orquesta desde Home Assistant
+#  (`ha/packages/bomba.yaml`), exponiendo los cables como entidades.
+#
+#  OJO: el comentario original decía que no hace falta alimentar el
+#  puerto Grove. Es FALSO, comprobado en hardware el 2026-08-10: sin
+#  encender `grove_port_power` (GPIO46) los pines se quedan a 0V pase lo
+#  que pase por fuera. Por eso el bloque `switch:` de abajo.
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+#  Settings > Apps > ESPHome Device Builder > tarjeta "Home Assistant
+#  Voice" > "Take control" > Edit. Añade este bloque al final del YAML.
+# ---------------------------------------------------------------------
+
+switch:
+  - platform: gpio
+    pin: GPIO46
+    id: grove_port_power
+    restore_mode: ALWAYS_ON
+    setup_priority: 1001
+
+binary_sensor:
+  # Cable ROJO -> pin blanco del Grove (SDA = GPIO1)
+  # Verificado contra modules/grove-i2c.yaml del repo oficial
+  # esphome/home-assistant-voice-pe (sda: GPIO1, scl: GPIO2).
+  - platform: gpio
+    id: cable_rojo_cortado
+    name: "Bomba cable rojo cortado"
+    pin:
+      number: GPIO1
+      mode:
+        input: true
+        pullup: true
+    filters:
+      - delayed_on: 30ms      # antirrebote
+      - delayed_off: 300ms
+
+  # Cable AZUL -> pin amarillo del Grove (SCL = GPIO2)
+  - platform: gpio
+    id: cable_azul_cortado
+    name: "Bomba cable azul cortado"
+    pin:
+      number: GPIO2
+      mode:
+        input: true
+        pullup: true
+    filters:
+      - delayed_on: 30ms
+      - delayed_off: 300ms
+
+  # Sensor de "listo para armar": los dos cables intactos.
+  # Útil para que HA no deje empezar una partida con un cable suelto.
+  # (Va dentro de la MISMA lista `binary_sensor:`; antes estaba bajo una
+  # segunda clave `binary_sensor:` duplicada, que en YAML machaca la
+  # primera y habría dejado los dos cables sin definir.)
+  - platform: template
+    name: "Bomba lista"
+    lambda: |-
+      return !id(cable_rojo_cortado).state && !id(cable_azul_cortado).state;
+
+

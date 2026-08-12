@@ -1,0 +1,43 @@
+# =====================================================================
+#  Qué NO se sube a este repo (es público)
+# =====================================================================
+
+# --- Credenciales ----------------------------------------------------
+# WiFi de casa. La plantilla vacía (secrets.yaml.example) sí se sube.
+secrets.yaml
+
+# --- Caché y build de ESPHome ----------------------------------------
+# ~1,3 GB entre el toolchain, el firmware oficial descargado y los
+# objetos compilados. Todo se regenera solo con `esphome compile`.
+.esphome/
+
+# --- Python ----------------------------------------------------------
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# --- Ajustes locales de Claude Code ----------------------------------
+# Rutas absolutas de esta máquina, no sirven de nada fuera de aquí.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# --- Audio con copyright ---------------------------------------------
+# La canción de MacGyver es material de terceros: uso privado en un
+# dispositivo propio para una fiesta, sin redistribuir. Este repo es
+# público, así que el fichero se queda solo en local (y OJO: sacarlo
+# después de subirlo obliga a reescribir el historial, no basta con
+# borrarlo). El firmware trae una alternativa sintetizada sin copyright,
+# `sounds/intro.mp3`. Ver el README, sección "El audio de la intro".
+macgyver_intro*.mp3
+
+# --- Restos de versiones anteriores ----------------------------------
+# Nada de esto lo usa el firmware actual. Se ignora en vez de borrarlo
+# por si algún día quieres recuperar alguno; se pueden borrar sin miedo.
+#   bomba_60.*            cuenta atrás de 60 s (ahora son 30 s)
+#   bomba_30.flac         FLAC de 24 bits, sustituido por cuenta_atras.flac
+#   cuenta_atras_partes/  experimento de trocear la pista, abandonado
+/bomba_60.mp3
+bomba-fiesta/audio/out/bomba_60.mp3
+bomba_30.flac
+cuenta_atras_partes/

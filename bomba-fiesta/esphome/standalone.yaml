@@ -1,0 +1,630 @@
+# =====================================================================
+#  BOMBA DE JUGUETE — Voice PE en modo AUTONOMO (sin Home Assistant)
+# =====================================================================
+#
+#  Este fichero es el YAML COMPLETO que se compila (no un snippet para
+#  pegar a mano). Importa el firmware oficial de home-assistant-voice-pe
+#  como `packages:` y le anade el juego encima.
+#
+#    esphome config  standalone.yaml    # valida
+#    esphome run     standalone.yaml    # compila + flashea
+#
+#  ---------------------------------------------------------------
+#  REESCRITO ENTERO (2026-08-11) BUSCANDO ESTABILIDAD
+#  ---------------------------------------------------------------
+#  La version anterior tenia tres problemas de raiz. Los tres estan
+#  resueltos por DISENO aqui, no por parches:
+#
+#  1) BUG QUE MATABA LA CUENTA ATRAS. El cronometro vivia en un global
+#     (`bomba_restante`) que un `interval: 1s` decrementaba mientras el
+#     estado fuese "armada", pero el estado se ponia a "armada" ANTES de
+#     leer los digitos y el global no se recargaba hasta DESPUES. Con el
+#     valor que quedaba de la ronda anterior (0 tras una explosion) el
+#     interval veia "tiempo agotado" al segundo de armar y disparaba la
+#     explosion en plena lectura de la serie: la cuenta atras se lanzaba
+#     igual pero otro audio la mataba acto seguido. De ahi el sintoma
+#     "no se oye la cuenta atras justo despues de una ronda en la que si
+#     se oyo entera" (y "a veces si va": tras una victoria comoda quedaba
+#     tiempo residual suficiente para llegar al reset del global).
+#     AHORA: no hay cronometro ni global de tiempo. El tiempo lo marca un
+#     `delay: 30s` dentro del propio script de la partida. Sin estado que
+#     sobreviva entre rondas no puede haber contaminacion entre rondas.
+#
+#  2) AUDIO POR COLA + SONDEO DE `is_announcing`. Habia scripts en
+#     cascada (`bomba_play` con `mode: queued`, parametro `bloqueante`,
+#     `wait_until` sobre el media player, timeouts magicos) y ademas
+#     `script.execute` NO espera al script llamado, asi que la sincronia
+#     dependia de wait_untils sueltos. Resultado: colas que se
+#     desbordaban ("Queue full, URI dropped") y audios que se perdian.
+#     AHORA: `bomba_sonar` PARA lo que suene y lanza el clip nuevo (el
+#     mismo patron que el `play_sound` de fabrica con priority:true).
+#     Nunca se encola nada, asi que la cola no puede desbordarse. Quien
+#     llama espera con un `delay` fijo del tamano REAL del fichero (las
+#     duraciones estan medidas y anotadas al lado de cada delay).
+#
+#  3) EL ARO DE LEDS TENIA DOS DUENOS. `led_ring` y `voice_assistant_leds`
+#     son dos particiones sobre las MISMAS 12 LEDs fisicas. Sin Home
+#     Assistant conectado el firmware de fabrica deja `voice_assistant_leds`
+#     encendido con el efecto "Twinkle" rojo de "sin conexion", que
+#     repinta las LEDs por encima de nuestros efectos.
+#     AHORA: se apaga `voice_assistant_leds` al entrar en cada fase, y un
+#     `interval` corto lo mantiene apagado mientras haya partida.
+#
+#  Cambios de comportamiento respecto a la version anterior:
+#   - La duracion ya NO se ajusta con la rueda: es 30 s, fija, la del
+#     audio. Ajustarla nunca funciono de verdad (el MP3 dura lo que dura:
+#     con 180 s la bomba estallaba en el audio a los 30 y el juego seguia
+#     otros 150 en silencio) y ademas movia el volumen de fabrica a la
+#     vez. La rueda vuelve a ser solo volumen, que en una fiesta importa.
+#   - Rearmar ya NO reinicia el ESP32. Con esta maquina de estados parar
+#     tres scripts es fiable; el reinicio costaba ~10 s y obligaba a
+#     triple-clicar otra vez. (El reinicio sigue disponible, comentado,
+#     al final del bloque del boton.)
+#   - La cuenta atras es FLAC 48 kHz mono 16 bits (`cuenta_atras.flac`),
+#     que es EXACTAMENTE el formato del pipeline de anuncios del
+#     firmware: se decodifica sin remuestrear y es el codec mas barato.
+#     El MP3 de 44.1 kHz obligaba a decodificar + remuestrear los 36 s
+#     mas largos y pesados del juego. Para volver atras: cambia el
+#     `file:` de `snd_cuenta_atras` a `sounds/bomba_30.mp3`.
+#
+#  POR QUE NO SE TOCA EL ASISTENTE DE VOZ DE FABRICA
+#  ---------------------------------------------------
+#  voice_assistant / micro_wake_word / voice_kit se dejan intactos. Sin
+#  Home Assistant conectado nunca arrancan (comprobado en el YAML
+#  oficial: `micro_wake_word.start` solo se dispara en
+#  `api: on_client_connected`), asi que no gastan CPU ni interfieren.
+#  Lo unico que si molestaba era el aro de LEDs, resuelto arriba.
+#
+#  COMO SE ARMA EL JUEGO
+#  ----------------------
+#  TRIPLE CLIC en el boton central. De fabrica el triple clic solo suena
+#  un "clic" y dispara un evento inerte (sin HA no lo escucha nadie), asi
+#  que anadimos nuestra accion en paralelo sin romper nada.
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+#  [0] BASE: firmware oficial completo, importado como paquete remoto
+# ---------------------------------------------------------------------
+
+packages:
+  home-assistant-voice: github://esphome/home-assistant-voice-pe/home-assistant-voice.yaml@dev
+
+esphome:
+  name: bomba-fiesta
+  friendly_name: Bomba de fiesta
+  # name_add_mac_suffix, on_boot, etc. vienen del paquete y se conservan:
+  # este dict se fusiona con el del paquete, no lo sustituye.
+
+# Critico: sin esto el dispositivo se reinicia solo a los 15 min si no
+# hay cliente API (Home Assistant) o si pierde la WiFi. En una fiesta en
+# otra casa, sin mi red ni mi HA, eso mataria cualquier partida en curso.
+api:
+  reboot_timeout: 0s
+
+# ESPHome exige al menos un SSID para compilar, aunque el juego no
+# dependa de la WiFi para nada. Si no hay red conocida cerca, el
+# dispositivo monta el AP de respaldo -- util para OTA/logs en la fiesta
+# si hay que tocar algo sobre la marcha.
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Bomba Fiesta Fallback"
+    password: !secret wifi_ap_password
+  reboot_timeout: 0s
+
+
+# ---------------------------------------------------------------------
+#  [1] ESTADO DEL JUEGO
+#
+#  UN SOLO global de estado. No hay cronometro, no hay duracion
+#  configurable, no hay nada persistente entre rondas: cada partida
+#  empieza de cero por construccion.
+#
+#    0 = ESPERA        (en reposo, cables empalmados)
+#    1 = LEYENDO       (diciendo el numero de serie; ya se puede cortar)
+#    2 = CUENTA_ATRAS  (tic-tac sonando)
+#    3 = GANADA
+#    4 = PERDIDA
+#
+#  Los cables solo hacen algo en 1 y 2.
+# ---------------------------------------------------------------------
+
+globals:
+  - id: bomba_estado
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: bomba_serie          # numero de serie de 4 digitos de esta ronda
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: bomba_cable_ok       # 0 = rojo, 1 = azul
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+
+# ---------------------------------------------------------------------
+#  [2] ALIMENTACION DEL PUERTO GROVE
+#
+#  CLAVE (costo horas de multimetro el 2026-08-10): el puerto Grove no
+#  lleva señal al exterior si no se enciende su interruptor de
+#  alimentacion. Sin el, SDA/SCL se quedan a 0V pase lo que pase por
+#  fuera, y el sintoma es identico al de un cable roto.
+#  Si algun dia los cables dejan de responder: MIRAR ESTO PRIMERO.
+# ---------------------------------------------------------------------
+
+switch:
+  - platform: gpio
+    pin: GPIO46
+    id: grove_port_power
+    restore_mode: ALWAYS_ON
+    setup_priority: 1001   # antes del escaneo de i2c/gpio (prioridad 1000)
+
+
+# ---------------------------------------------------------------------
+#  [3] EFECTOS DEL ARO DE LEDS
+#
+#  led_ring es una particion sobre `leds_internal` (las 12 LEDs fisicas)
+#  y de fabrica no trae ningun efecto: los efectos viven en la otra
+#  particion, `voice_assistant_leds`. Aqui le anadimos los del juego.
+#  Ojo: las dos particiones pintan las MISMAS LEDs, por eso hay que
+#  apagar `voice_assistant_leds` al usar las nuestras (ver [7]).
+# ---------------------------------------------------------------------
+
+light:
+  - id: !extend led_ring
+    effects:
+      - addressable_lambda:
+          # Mientras se lee el numero de serie: celeste / blanco calido.
+          name: "leyendo"
+          update_interval: 400ms
+          lambda: |-
+            static bool on = false;
+            Color a(0, 150, 200);
+            Color b(200, 200, 200);
+            Color c = on ? a : b;
+            for (int i = 0; i < it.size(); i++) it[i] = c;
+            on = !on;
+      - addressable_lambda:
+          # Rojo pulsante: tic-tac de la cuenta atras y locucion de derrota.
+          name: "tension"
+          update_interval: 300ms
+          lambda: |-
+            static bool on = false;
+            Color rojo(255, 0, 0);
+            Color apagado(40, 0, 0);
+            Color c = on ? rojo : apagado;
+            for (int i = 0; i < it.size(); i++) it[i] = c;
+            on = !on;
+      - addressable_lambda:
+          # Victoria: colores de fiesta con predominio de verde.
+          name: "fiesta"
+          update_interval: 100ms
+          lambda: |-
+            static uint8_t offset = 0;
+            static const Color paleta[6] = {
+              Color(0, 255, 0), Color(0, 255, 80), Color(255, 220, 0),
+              Color(0, 255, 0), Color(0, 180, 255), Color(0, 255, 0),
+            };
+            for (int i = 0; i < it.size(); i++) {
+              it[i] = paleta[(i + offset) % 6];
+            }
+            offset = (offset + 1) % 6;
+
+
+# ---------------------------------------------------------------------
+#  [4] LOS DOS CABLES (puerto Grove) Y EL BOTON DE ARMAR
+#
+#      Hilo blanco = SDA = GPIO1 -> cable ROJO del juego -> GND
+#      Hilo amarillo = SCL = GPIO2 -> cable AZUL del juego -> GND
+#      Hilo rojo (5V) no se usa: se corta y se aisla.
+#      Pull-up interno:  intacto = LOW = off  |  cortado = HIGH = on
+#
+#      No se incluye el paquete grove-i2c.yaml de fabrica: aqui los pines
+#      son GPIO simple, no bus I2C, asi que no hay conflicto de uso.
+# ---------------------------------------------------------------------
+
+binary_sensor:
+  - platform: gpio
+    id: cable_rojo
+    name: "Bomba cable rojo cortado"
+    pin:
+      number: GPIO1
+      mode:
+        input: true
+        pullup: true
+    filters:
+      - delayed_on: 30ms     # antirrebote del corte
+      - delayed_off: 300ms   # antirrebote del reempalme
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(bomba_estado) == 1 || id(bomba_estado) == 2;'
+            then:
+              # Corta la partida en seco: mata el `delay` de la cuenta
+              # atras y la lectura de digitos si seguia en marcha.
+              - script.stop: bomba_partida
+              - if:
+                  condition:
+                    lambda: 'return id(bomba_cable_ok) == 0;'
+                  then: [script.execute: bomba_ganar]
+                  else: [script.execute: bomba_perder]
+
+  - platform: gpio
+    id: cable_azul
+    name: "Bomba cable azul cortado"
+    pin:
+      number: GPIO2
+      mode:
+        input: true
+        pullup: true
+    filters:
+      - delayed_on: 30ms
+      - delayed_off: 300ms
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(bomba_estado) == 1 || id(bomba_estado) == 2;'
+            then:
+              - script.stop: bomba_partida
+              - if:
+                  condition:
+                    lambda: 'return id(bomba_cable_ok) == 1;'
+                  then: [script.execute: bomba_ganar]
+                  else: [script.execute: bomba_perder]
+
+  # --------------------------------------------------------------
+  # EXTENSION del boton central de fabrica. `!extend` CONCATENA listas
+  # (confirmado compilando): el bloque de fabrica sigue intacto y este se
+  # anade aparte. Por eso aqui va SOLO lo nuevo, con un timing identico
+  # al del triple clic de fabrica. El "clic" y el evento de fabrica se
+  # siguen disparando en paralelo, sin tocarlos.
+  # --------------------------------------------------------------
+  - id: !extend center_button
+    on_multi_click:
+      - timing:
+          - ON for at most 1s
+          - OFF for at most 0.25s
+          - ON for at most 1s
+          - OFF for at most 0.25s
+          - ON for at most 1s
+          - OFF for at least 0.25s
+        then:
+          # Triple clic = armar SIEMPRE, se este donde se este. bomba_armar
+          # limpia lo anterior antes de empezar (ver script), asi que no
+          # hace falta distinguir "en espera" de "en mitad de una ronda".
+          - script.execute: bomba_armar
+
+          # Si algun dia esto se volviera poco fiable, la alternativa
+          # bruta es reiniciar el aparato entero y volver a triple-clicar:
+          #   - button.press: restart_button
+
+
+# ---------------------------------------------------------------------
+#  [5] AUDIOS DEL JUEGO
+#
+#  Duraciones REALES medidas (ffprobe). Los `delay` de los scripts salen
+#  de aqui: si cambias un fichero, cambia tambien su delay.
+#
+#    cuenta_atras.flac  36.2 s  (30.0 s de tic-tac + explosion hasta 36.2)
+#    bomba_boom.mp3      5.0 s
+#    bomba_ok.mp3        1.4 s
+#    macgyver_recorte   11.0 s
+#    perdiste.flac       1.1 s
+#    chupito.flac        1.3 s
+#    no_armar.flac       4.4 s
+#    d0..d9.flac        0.30-0.50 s
+# ---------------------------------------------------------------------
+
+audio_file:
+  # Cuenta atras: FLAC 48 kHz mono 16 bits = formato nativo del pipeline
+  # de anuncios (ni remuestreo ni decodificacion cara). Es el fichero mas
+  # largo del juego y el que fallaba, asi que se le da el camino facil.
+  # Alternativa MP3 (mas pequeña, mas trabajo para el ESP32):
+  #   file: sounds/bomba_30.mp3
+  - id: snd_cuenta_atras
+    file: sounds/cuenta_atras.flac
+
+  # Recorte (19s-30s) de la cancion de MacGyver, que suena al ganar.
+  # ESTE FICHERO NO ESTA EN EL REPO: es material de terceros y el repo es
+  # publico, asi que se queda solo en local (ver .gitignore). Recien
+  # clonado esto NO compila hasta hacer una de las dos cosas:
+  #   a) poner tu propio recorte en sounds/macgyver_intro_recorte.mp3
+  #      (el original completo esta en audio/manual/, tambien ignorado)
+  #   b) cambiar el `file:` de aqui abajo por  sounds/intro.mp3, que es
+  #      un jingle sintetizado sin copyright (audio/generar_intro.py) y
+  #      ese si viaja en el repo.
+  - id: snd_intro
+    file: sounds/macgyver_intro_recorte.mp3
+  - id: snd_ok
+    file: sounds/bomba_ok.mp3
+  - id: snd_boom
+    file: sounds/bomba_boom.mp3
+  - id: snd_perdiste
+    file: sounds/perdiste.flac
+  - id: snd_chupito
+    file: sounds/chupito.flac
+  - id: snd_no_armar
+    file: sounds/no_armar.flac
+
+  # Los ids TIENEN que ser snd_d0..snd_d9: se construyen por concatenacion
+  # ("snd_d" + numero) al leer el numero de serie.
+  - id: snd_d0
+    file: sounds/d0.flac
+  - id: snd_d1
+    file: sounds/d1.flac
+  - id: snd_d2
+    file: sounds/d2.flac
+  - id: snd_d3
+    file: sounds/d3.flac
+  - id: snd_d4
+    file: sounds/d4.flac
+  - id: snd_d5
+    file: sounds/d5.flac
+  - id: snd_d6
+    file: sounds/d6.flac
+  - id: snd_d7
+    file: sounds/d7.flac
+  - id: snd_d8
+    file: sounds/d8.flac
+  - id: snd_d9
+    file: sounds/d9.flac
+
+
+# ---------------------------------------------------------------------
+#  [6] SCRIPTS DEL JUEGO
+# ---------------------------------------------------------------------
+
+script:
+  # -------------------------------------------------- SONAR (unico sitio
+  # que toca el altavoz). Para lo que hubiera sonando y lanza el clip
+  # nuevo. Nunca encola: si algo sonaba, se corta. Asi la cola de anuncios
+  # del media player nunca puede desbordarse ("Queue full, URI dropped").
+  # NO espera a que termine: eso lo hace quien llama, con un `delay` del
+  # tamano del fichero (ver duraciones en [5]).
+  # mode: restart -> dos llamadas seguidas no se pisan, gana la ultima.
+  - id: bomba_sonar
+    mode: restart
+    parameters:
+      fichero: string
+    then:
+      - media_player.stop:
+          id: external_media_player
+          announcement: true
+      - delay: 60ms          # que el pipeline suelte el clip anterior
+      - lambda: |-
+          id(external_media_player)
+            ->make_call()
+            .set_media_url("audio-file://" + fichero)
+            .set_announcement(true)
+            .perform();
+
+  # -------------------------------------------------- ARMAR (entrada del
+  # triple clic). Limpia todo lo de la ronda anterior, comprueba que los
+  # cables esten empalmados y arranca la partida.
+  - id: bomba_armar
+    mode: restart
+    then:
+      - script.stop: bomba_partida
+      - script.stop: bomba_ganar
+      - script.stop: bomba_perder
+      - script.stop: bomba_derrota_locucion
+      - lambda: 'id(bomba_estado) = 0;'
+      - media_player.stop:
+          id: external_media_player
+          announcement: true
+      - light.turn_off: {id: voice_assistant_leds}
+      - light.turn_off: {id: led_ring}
+
+      - if:
+          condition:
+            lambda: 'return id(cable_rojo)->state || id(cable_azul)->state;'
+          then:
+            # No se puede jugar con un cable ya cortado: aviso y a esperar.
+            - logger.log: "bomba: no arma, hay algun cable cortado"
+            - light.turn_on:
+                id: led_ring
+                red: 100%
+                green: 100%
+                blue: 0%
+                brightness: 100%
+            - script.execute:
+                id: bomba_sonar
+                fichero: "snd_no_armar"
+            - delay: 4700ms          # no_armar.flac dura 4.4 s
+            - light.turn_off: {id: led_ring}
+          else:
+            - script.execute: bomba_partida
+
+  # -------------------------------------------------- PARTIDA
+  # Todo el juego, en orden, en un solo sitio. El "cronometro" es el
+  # `delay: 30s` de mas abajo: mientras ese delay corre, la partida esta
+  # viva; si alguien corta un cable, el sensor hace `script.stop` y este
+  # script muere ahi mismo. No hay ningun contador global que pueda
+  # arrastrarse a la ronda siguiente.
+  - id: bomba_partida
+    mode: restart
+    then:
+      - lambda: |-
+          id(bomba_serie) = 1000 + (random_uint32() % 9000);
+          // REGLA (imprimela en la tarjeta de los jugadores):
+          //   ultimo digito PAR   -> cortar ROJO
+          //   ultimo digito IMPAR -> cortar AZUL
+          id(bomba_cable_ok) = (id(bomba_serie) % 2 == 0) ? 0 : 1;
+          id(bomba_estado) = 1;   // LEYENDO: ya se puede cortar
+          ESP_LOGI("bomba", "ronda nueva: serie=%d -> cable_ok=%s",
+                   id(bomba_serie), id(bomba_cable_ok) == 0 ? "ROJO" : "AZUL");
+
+      - light.turn_off: {id: voice_assistant_leds}
+      - light.turn_on:
+          id: led_ring
+          effect: "leyendo"
+          brightness: 100%
+
+      # Respiro antes del primer digito: deja terminar el "clic" de triple
+      # pulsacion del firmware de fabrica (1.5 s) en vez de cortarlo a
+      # medias, y da un instante de suspense.
+      - delay: 1600ms
+
+      # Numero de serie, digito a digito. 850 ms por digito: el clip mas
+      # largo son 0.50 s, asi que sobra margen y NO hay que sondear si el
+      # audio ha terminado (que era justo lo fragil de antes).
+      - script.execute:
+          id: bomba_sonar
+          fichero: !lambda 'return "snd_d" + std::to_string((id(bomba_serie) / 1000) % 10);'
+      - delay: 850ms
+      - script.execute:
+          id: bomba_sonar
+          fichero: !lambda 'return "snd_d" + std::to_string((id(bomba_serie) / 100) % 10);'
+      - delay: 850ms
+      - script.execute:
+          id: bomba_sonar
+          fichero: !lambda 'return "snd_d" + std::to_string((id(bomba_serie) / 10) % 10);'
+      - delay: 850ms
+      - script.execute:
+          id: bomba_sonar
+          fichero: !lambda 'return "snd_d" + std::to_string(id(bomba_serie) % 10);'
+      - delay: 1100ms
+
+      # ---- CUENTA ATRAS ----
+      - lambda: 'id(bomba_estado) = 2;'
+      - light.turn_off: {id: voice_assistant_leds}
+      - light.turn_on:
+          id: led_ring
+          effect: "tension"
+          brightness: 100%
+      - script.execute:
+          id: bomba_sonar
+          fichero: "snd_cuenta_atras"
+
+      # 30 s de tic-tac. Este delay ES el cronometro de la partida.
+      - delay: 30s
+
+      # Se acabo el tiempo y nadie corto nada. NO lanzamos el boom: el
+      # propio fichero ya explota justo aqui (segundo 30 de 36.2), asi que
+      # solo hay que dejarlo sonar. Menos audio lanzado = menos que pueda
+      # fallar, y la explosion cae clavada con el ultimo tic.
+      - lambda: 'id(bomba_estado) = 4;'
+      - logger.log: "bomba: tiempo agotado -> explota"
+      - delay: 6800ms          # cola de explosion del propio fichero
+      - script.execute: bomba_derrota_locucion
+
+  # -------------------------------------------------- GANAR
+  - id: bomba_ganar
+    mode: restart
+    then:
+      - lambda: 'id(bomba_estado) = 3;'
+      - logger.log: "bomba: DESACTIVADA"
+      - light.turn_off: {id: voice_assistant_leds}
+      - light.turn_on:
+          id: led_ring
+          effect: "fiesta"
+          brightness: 100%
+      - script.execute:
+          id: bomba_sonar
+          fichero: "snd_ok"
+      - delay: 1800ms          # bomba_ok.mp3 dura 1.4 s
+      - script.execute:
+          id: bomba_sonar
+          fichero: "snd_intro"
+      # La intro (11 s) suena hasta el final por su cuenta. El script
+      # termina aqui a proposito: asi se puede rearmar de inmediato sin
+      # esperarla (bomba_armar la corta al empezar la ronda siguiente).
+
+  # -------------------------------------------------- PERDER (cable malo)
+  - id: bomba_perder
+    mode: restart
+    then:
+      - lambda: 'id(bomba_estado) = 4;'
+      - logger.log: "bomba: BOOM (cable equivocado)"
+      - light.turn_off: {id: voice_assistant_leds}
+      - light.turn_on:
+          id: led_ring
+          effect: "tension"
+          brightness: 100%
+      - script.execute:
+          id: bomba_sonar
+          fichero: "snd_boom"    # corta el tic-tac y explota
+      - delay: 5300ms            # bomba_boom.mp3 dura 5.0 s
+      - script.execute: bomba_derrota_locucion
+
+  # -------------------------------------------------- LOCUCION DE DERROTA
+  # Comun a las dos formas de perder (cable equivocado / tiempo agotado).
+  # Dos clips cortos en vez de una frase larga: se entiende mucho mejor.
+  - id: bomba_derrota_locucion
+    mode: restart
+    then:
+      - script.execute:
+          id: bomba_sonar
+          fichero: "snd_perdiste"
+      - delay: 1500ms            # perdiste.flac dura 1.1 s
+      - script.execute:
+          id: bomba_sonar
+          fichero: "snd_chupito"
+      - delay: 1700ms            # chupito.flac dura 1.3 s
+      # Rojo fijo y tenue: "bomba muerta", esperando a que reempalmen.
+      - light.turn_on:
+          id: led_ring
+          red: 100%
+          green: 0%
+          blue: 0%
+          brightness: 40%
+
+  # -------------------------------------------------- VOLVER A ESPERA
+  - id: bomba_reset
+    mode: restart
+    then:
+      - logger.log: "bomba: cables empalmados -> lista para armar"
+      - lambda: 'id(bomba_estado) = 0;'
+      - light.turn_off: {id: led_ring}
+
+
+# ---------------------------------------------------------------------
+#  [7] MANTENIMIENTO EN SEGUNDO PLANO
+# ---------------------------------------------------------------------
+
+interval:
+  # El aro tiene dos duenos: `led_ring` (el nuestro) y
+  # `voice_assistant_leds`, que son dos particiones sobre las mismas 12
+  # LEDs. Sin Home Assistant, el firmware de fabrica deja el segundo
+  # encendido con su "Twinkle" rojo de "sin conexion" y repinta por
+  # encima de nuestros efectos. Mientras haya partida, lo apagamos.
+  # Se hace por interval y no solo al entrar en cada fase porque el
+  # `control_leds` de fabrica lo puede volver a encender en cualquier
+  # momento (cambios de volumen, pulsaciones, estado del media player).
+  - interval: 500ms
+    then:
+      - if:
+          condition:
+            and:
+              # `bomba_armar.is_running()` cubre el aviso de "no se puede
+              # armar": ahi el estado sigue siendo 0 (no hay partida) pero
+              # el aro esta en amarillo y tampoco queremos que lo repinten.
+              - lambda: 'return id(bomba_estado) != 0 || id(bomba_armar).is_running();'
+              - light.is_on: voice_assistant_leds
+          then:
+            - light.turn_off: {id: voice_assistant_leds}
+
+  # Vuelta a "espera" cuando la ronda ha terminado del todo y los dos
+  # cables estan otra vez empalmados en la regleta.
+  # La comprobacion de scripts en marcha es importante: sin ella, una
+  # derrota por tiempo agotado (donde no se corta ningun cable, asi que
+  # los dos siguen "intactos") se reseteaba a los 2 s, apagando las LEDs
+  # en plena explosion.
+  - interval: 2s
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return id(bomba_estado) >= 3 &&
+                     !id(cable_rojo)->state && !id(cable_azul)->state &&
+                     !id(bomba_partida).is_running() &&
+                     !id(bomba_ganar).is_running() &&
+                     !id(bomba_perder).is_running() &&
+                     !id(bomba_derrota_locucion).is_running();
+          then: [script.execute: bomba_reset]

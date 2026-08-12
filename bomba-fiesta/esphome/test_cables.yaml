@@ -1,0 +1,86 @@
+# =====================================================================
+#  TEST AISLADO DE LOS DOS PINES DEL GROVE (GPIO1/GPIO2)
+# =====================================================================
+#  Firmware minimo, sin logica de juego: en cuanto haya continuidad
+#  entre GND y un pin de señal, suena un pitido distinto para cada uno
+#  y lo deja anotado en el log. Pensado para probar cables/conector a
+#  toque sin depender de que alguien este mirando logs en directo.
+#
+#  Sin filtros de antirrebote (a proposito): asi se nota hasta un
+#  contacto flojo o intermitente, que con el juego real quedaria
+#  enmascarado por el debounce.
+#
+#  Flashear igual que standalone.yaml:
+#    esphome --toolchain platformio run test_cables.yaml --device /dev/ttyACM0
+# =====================================================================
+
+packages:
+  home-assistant-voice: github://esphome/home-assistant-voice-pe/home-assistant-voice.yaml@dev
+
+esphome:
+  name: test-cables
+
+api:
+  reboot_timeout: 0s
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Test Cables Fallback"
+    password: !secret wifi_ap_password
+  reboot_timeout: 0s
+
+# Alimentacion del puerto Grove. Sospecha: sin esto, las señales SDA/SCL
+# podrian no llegar nunca al conector externo si hay algun buffer/ESD
+# intermedio que necesite este riel para dejar pasar la señal.
+switch:
+  - platform: gpio
+    pin: GPIO46
+    id: grove_port_power
+    restore_mode: ALWAYS_ON
+    setup_priority: 1001
+
+binary_sensor:
+  # SIN inverted esta vez -- sospecha: inverted+pullup podria estar
+  # acabando en pull-DOWN en vez de pull-up (el multimetro marca 0V en
+  # reposo, cuando con pull-up deberia marcar ~3.3V). Sin invertir: en
+  # reposo se espera HIGH/on (pull-up puro), y el toque a GND se detecta
+  # en on_release (transicion a LOW), no en on_press.
+  - platform: gpio
+    id: cable_rojo
+    name: "Test cable rojo"
+    pin:
+      number: GPIO1
+      mode:
+        input: true
+        pullup: true
+    on_release:
+      then:
+        - logger.log: "### CABLE ROJO (GPIO1): CONTACTO DETECTADO ###"
+        - script.execute:
+            id: play_sound
+            priority: true
+            sound_file: "wake_word_triggered_sound"
+    on_press:
+      then:
+        - logger.log: "cable rojo (GPIO1): contacto soltado"
+
+  - platform: gpio
+    id: cable_azul
+    name: "Test cable azul"
+    pin:
+      number: GPIO2
+      mode:
+        input: true
+        pullup: true
+    on_release:
+      then:
+        - logger.log: "### CABLE AZUL (GPIO2): CONTACTO DETECTADO ###"
+        - script.execute:
+            id: play_sound
+            priority: true
+            sound_file: "timer_finished_sound"
+    on_press:
+      then:
+        - logger.log: "cable azul (GPIO2): contacto soltado"

@@ -1,0 +1,255 @@
+# ---------------------------------------------------------------------
+#  PARTE 2 — HOME ASSISTANT
+#  Guarda como config/packages/bomba.yaml y en configuration.yaml:
+#      homeassistant:
+#        packages: !include_dir_named packages
+#
+#  AJUSTA ESTAS ENTIDADES A LAS TUYAS:
+#    media_player.home_assistant_voice_XXXX_media_player
+#    light.home_assistant_voice_XXXX_led_ring
+#    binary_sensor.bomba_cable_rojo_cortado / _azul_cortado
+#    tts.home_assistant_cloud   (o tu tts.piper)
+#
+#  AUDIO: coloca los mp3 en config/www/  -> se sirven en /local/
+#    bomba_60.mp3       tic-tac acelerando + explosión al final
+#    bomba_boom.mp3     explosión corta
+#    bomba_ok.mp3       sonido de desactivada
+# ---------------------------------------------------------------------
+
+timer:
+  bomba:
+    name: Bomba
+    duration: "00:01:00"
+    icon: mdi:bomb
+
+input_boolean:
+  bomba_armada:
+    name: Bomba armada
+    icon: mdi:bomb
+
+input_number:
+  bomba_serie:
+    name: Numero de serie
+    min: 1000
+    max: 9999
+    step: 1
+    mode: box
+  bomba_duracion:
+    name: Duracion partida (s)
+    min: 20
+    max: 180
+    step: 10
+    initial: 60
+    mode: slider
+
+input_select:
+  bomba_cable_correcto:
+    name: Cable correcto
+    options:
+      - rojo
+      - azul
+    initial: rojo
+
+script:
+
+  # ------------------------------------------------------ ARMAR
+  bomba_armar:
+    alias: Bomba - armar
+    mode: single
+    sequence:
+      # No armar si algún cable está ya cortado
+      - condition: state
+        entity_id: binary_sensor.bomba_cable_rojo_cortado
+        state: "off"
+      - condition: state
+        entity_id: binary_sensor.bomba_cable_azul_cortado
+        state: "off"
+
+      - variables:
+          serie: "{{ range(1000, 10000) | random }}"
+
+      # REGLA DEL JUEGO (imprímela en una tarjeta):
+      #   último dígito PAR   -> cortar ROJO
+      #   último dígito IMPAR -> cortar AZUL
+      - action: input_number.set_value
+        target: {entity_id: input_number.bomba_serie}
+        data: {value: "{{ serie }}"}
+      - action: input_select.select_option
+        target: {entity_id: input_select.bomba_cable_correcto}
+        data:
+          option: "{{ 'rojo' if serie % 2 == 0 else 'azul' }}"
+
+      - action: input_boolean.turn_on
+        target: {entity_id: input_boolean.bomba_armada}
+
+      # Locución inicial: lee la serie dígito a dígito
+      - action: tts.speak
+        target: {entity_id: tts.home_assistant_cloud}
+        data:
+          media_player_entity_id: media_player.home_assistant_voice_media_player
+          message: >
+            Dispositivo armado. Numero de serie:
+            {{ serie | string | list | join(', ') }}.
+            Tienes {{ states('input_number.bomba_duracion') | int }} segundos.
+          cache: false
+      - delay: "00:00:07"
+
+      # Aro de LED en rojo parpadeante
+      - action: light.turn_on
+        target: {entity_id: light.home_assistant_voice_led_ring}
+        data:
+          rgb_color: [255, 0, 0]
+          brightness: 255
+
+      # Un único mp3 lleva el tic-tac acelerando Y la explosión final
+      - action: media_player.play_media
+        target: {entity_id: media_player.home_assistant_voice_media_player}
+        data:
+          media_content_id: /local/bomba_60.mp3
+          media_content_type: music
+
+      - action: timer.start
+        target: {entity_id: timer.bomba}
+        data:
+          duration: "{{ states('input_number.bomba_duracion') | int }}"
+
+  # ------------------------------------------------------ DESACTIVAR
+  bomba_desactivar:
+    alias: Bomba - desactivada
+    mode: single
+    sequence:
+      - action: timer.cancel
+        target: {entity_id: timer.bomba}
+      - action: media_player.media_stop
+        target: {entity_id: media_player.home_assistant_voice_media_player}
+      - action: input_boolean.turn_off
+        target: {entity_id: input_boolean.bomba_armada}
+      - action: light.turn_on
+        target: {entity_id: light.home_assistant_voice_led_ring}
+        data:
+          rgb_color: [0, 255, 0]
+          brightness: 255
+      - action: media_player.play_media
+        target: {entity_id: media_player.home_assistant_voice_media_player}
+        data:
+          media_content_id: /local/bomba_ok.mp3
+          media_content_type: music
+      - delay: "00:00:03"
+      - action: tts.speak
+        target: {entity_id: tts.home_assistant_cloud}
+        data:
+          media_player_entity_id: media_player.home_assistant_voice_media_player
+          message: "Dispositivo desactivado. Buen trabajo."
+
+  # ------------------------------------------------------ EXPLOTAR
+  bomba_explotar:
+    alias: Bomba - explota
+    mode: single
+    sequence:
+      - action: timer.cancel
+        target: {entity_id: timer.bomba}
+      - action: media_player.media_stop
+        target: {entity_id: media_player.home_assistant_voice_media_player}
+      - action: input_boolean.turn_off
+        target: {entity_id: input_boolean.bomba_armada}
+      - action: media_player.play_media
+        target: {entity_id: media_player.home_assistant_voice_media_player}
+        data:
+          media_content_id: /local/bomba_boom.mp3
+          media_content_type: music
+      - repeat:
+          count: 8
+          sequence:
+            - action: light.turn_on
+              target: {entity_id: light.home_assistant_voice_led_ring}
+              data: {rgb_color: [255, 0, 0], brightness: 255}
+            - delay: {milliseconds: 120}
+            - action: light.turn_off
+              target: {entity_id: light.home_assistant_voice_led_ring}
+            - delay: {milliseconds: 120}
+
+automation:
+
+  # -------------------------- botón central = armar
+  - alias: Bomba - armar con el boton
+    triggers:
+      - trigger: state
+        entity_id: event.home_assistant_voice_button   # revisa el nombre real
+    conditions:
+      - condition: state
+        entity_id: input_boolean.bomba_armada
+        state: "off"
+    actions:
+      - action: script.bomba_armar
+
+  # -------------------------- corte del cable ROJO
+  - alias: Bomba - corte cable rojo
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.bomba_cable_rojo_cortado
+        to: "on"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.bomba_armada
+        state: "on"
+    actions:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_select.bomba_cable_correcto
+                state: "rojo"
+            sequence:
+              - action: script.bomba_desactivar
+        default:
+          - action: script.bomba_explotar
+
+  # -------------------------- corte del cable AZUL
+  - alias: Bomba - corte cable azul
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.bomba_cable_azul_cortado
+        to: "on"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.bomba_armada
+        state: "on"
+    actions:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_select.bomba_cable_correcto
+                state: "azul"
+            sequence:
+              - action: script.bomba_desactivar
+        default:
+          - action: script.bomba_explotar
+
+  # -------------------------- se acaba el tiempo
+  - alias: Bomba - se acabo el tiempo
+    triggers:
+      - trigger: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.bomba
+    actions:
+      - action: script.bomba_explotar
+
+  # -------------------------- apagar el aro al terminar
+  - alias: Bomba - apagar led tras partida
+    triggers:
+      - trigger: state
+        entity_id: input_boolean.bomba_armada
+        to: "off"
+        for: "00:00:20"
+    actions:
+      - action: light.turn_off
+        target: {entity_id: light.home_assistant_voice_led_ring}
+
+
+# ---------------------------------------------------------------------
+#  EXTRA OPCIONAL: desactivación por voz
+#  Settings > Voice assistants > Expose / frases personalizadas.
+#  Crea un intent script y que la contraseña ("protocolo omega") sea
+#  obligatoria ADEMÁS de cortar el cable correcto: pon un input_boolean
+#  bomba_password_ok y añádelo como condición en los dos "choose".
+# ---------------------------------------------------------------------
