@@ -65,7 +65,7 @@
 #     firmware: se decodifica sin remuestrear y es el codec mas barato.
 #     El MP3 de 44.1 kHz obligaba a decodificar + remuestrear los 36 s
 #     mas largos y pesados del juego. Para volver atras: cambia el
-#     `file:` de `snd_cuenta_atras` a `sounds/bomba_30.mp3`.
+#     `file:` de `snd_cuenta_atras` a `sounds/cuenta_atras.mp3`.
 #
 #  POR QUE NO SE TOCA EL ASISTENTE DE VOZ DE FABRICA
 #  ---------------------------------------------------
@@ -136,7 +136,7 @@ globals:
     type: int
     restore_value: false
     initial_value: '0'
-  - id: bomba_serie          # numero de serie de 4 digitos de esta ronda
+  - id: bomba_serie          # el numero de esta ronda (primo o no primo)
     type: int
     restore_value: false
     initial_value: '0'
@@ -368,13 +368,13 @@ binary_sensor:
 #  de aqui: si cambias un fichero, cambia tambien su delay.
 #
 #    cuenta_atras.flac  36.2 s  (30.0 s de tic-tac + explosion hasta 36.2)
-#    bomba_boom.mp3      5.0 s
+#    bomba_boom.flac     6.2 s
 #    bomba_ok.mp3        1.4 s
 #    macgyver_recorte   11.0 s
 #    perdiste.flac       1.1 s
 #    chupito.flac        1.3 s
 #    no_armar.flac       4.4 s
-#    d0..d9.flac        0.30-0.50 s
+#    n2..n71.flac       0.48-1.49 s  (los 40 numeros del juego)
 # ---------------------------------------------------------------------
 
 audio_file:
@@ -382,7 +382,7 @@ audio_file:
   # de anuncios (ni remuestreo ni decodificacion cara). Es el fichero mas
   # largo del juego y el que fallaba, asi que se le da el camino facil.
   # Alternativa MP3 (mas pequeña, mas trabajo para el ESP32):
-  #   file: sounds/bomba_30.mp3
+  #   file: sounds/cuenta_atras.mp3
   - id: snd_cuenta_atras
     file: sounds/cuenta_atras.flac
 
@@ -399,8 +399,11 @@ audio_file:
     file: sounds/macgyver_intro_recorte.mp3
   - id: snd_ok
     file: sounds/bomba_ok.mp3
+  # Explosion del cable equivocado. Tambien en FLAC nativo (la alternativa
+  # es sounds/bomba_boom.mp3): es el sonido mas importante del juego y no
+  # tiene sentido hacerle decodificar MP3 justo en el momento cumbre.
   - id: snd_boom
-    file: sounds/bomba_boom.mp3
+    file: sounds/bomba_boom.flac
   - id: snd_perdiste
     file: sounds/perdiste.flac
   - id: snd_chupito
@@ -732,7 +735,7 @@ script:
       - script.execute:
           id: bomba_sonar
           fichero: "snd_boom"    # corta el tic-tac y explota
-      - delay: 5300ms            # bomba_boom.mp3 dura 5.0 s
+      - delay: 6500ms            # bomba_boom.flac dura 6.2 s
       - script.execute: bomba_derrota_locucion
 
   # -------------------------------------------------- LOCUCION DE DERROTA

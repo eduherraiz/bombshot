@@ -32,14 +32,58 @@ def envolvente(n, ataque=0.002, decay=25.0):
     return env
 
 
-def paso_bajo(x, alpha=0.15):
-    """Filtro paso bajo de un polo. Suficiente para dar cuerpo al ruido."""
-    y = np.zeros_like(x)
-    acc = 0.0
-    for i in range(len(x)):
-        acc += alpha * (x[i] - acc)
-        y[i] = acc
-    return y
+def filtro(x, lo=None, hi=None, orden=4):
+    """Paso banda en el dominio de la frecuencia (magnitud Butterworth).
+
+    En vez de un filtro de un polo aplicado muestra a muestra: es exacto,
+    vectorizado, y permite decir "de 250 a 2500 Hz" en vez de pelearse con
+    una constante alpha. Sin scipy, que aqui no hay.
+    """
+    n = len(x)
+    X = np.fft.rfft(x)
+    f = np.fft.rfftfreq(n, 1.0 / SR)
+    mascara = np.ones_like(f)
+    if lo:
+        mascara /= np.sqrt(1.0 + (lo / np.maximum(f, 1e-9)) ** (2 * orden))
+    if hi:
+        mascara /= np.sqrt(1.0 + (f / hi) ** (2 * orden))
+    return np.fft.irfft(X * mascara, n)
+
+
+def saturar(x, drive=2.0):
+    """Saturacion suave, como la de una grabacion que se pasa de nivel.
+
+    Hace dos cosas a la vez: sube el volumen percibido (aplasta los picos,
+    sube la energia media) y genera armonicos de los graves. Lo segundo es
+    lo importante aqui: el altavoz del Voice PE no reproduce 50 Hz, pero si
+    sus armonicos, y el oido reconstruye el grave que falta (fundamental
+    ausente). Una explosion saturada suena MAS grave en un altavoz pequeno
+    que la misma explosion limpia.
+    """
+    return np.tanh(x * drive) / np.tanh(drive)
+
+
+def reverberar(x, rng, dur_cola=1.1, mezcla=0.28):
+    """Reverb por conviolucion con ruido que decae: da sensacion de tamano.
+
+    Una explosion seca suena a petardo; lo que la hace sonar "grande" es el
+    eco del sitio donde ocurre. La respuesta al impulso es ruido filtrado
+    con caida exponencial, y la convolucion se hace por FFT para que no
+    tarde una eternidad.
+    """
+    n_ir = int(dur_cola * SR)
+    ir = rng.standard_normal(n_ir) * np.exp(-4.5 * np.arange(n_ir) / SR)
+    ir = filtro(ir, 200, 4000)
+    ir /= np.max(np.abs(ir)) + 1e-9
+
+    n = len(x) + n_ir - 1
+    nfft = 1 << int(np.ceil(np.log2(n)))
+    humedo = np.fft.irfft(np.fft.rfft(x, nfft) * np.fft.rfft(ir, nfft), nfft)[:n]
+    humedo /= np.max(np.abs(humedo)) + 1e-9
+
+    seco = np.zeros(n)
+    seco[: len(x)] = x
+    return (1.0 - mezcla) * seco + mezcla * humedo
 
 
 def ruido_marron(n, rng):
@@ -71,38 +115,88 @@ def click(f0=1500.0, dur=0.05, decay=55.0, rng=None):
     return (cuerpo + transitorio) * envolvente(n, decay=decay) * 0.5
 
 
-def explosion(dur=3.5, rng=None):
-    """Crack inicial + rumble grave con caída de tono."""
+def explosion(dur=3.5, rng=None, brillo=1.0):
+    """Una detonación, montada en cuatro capas + metralla.
+
+    EL PROBLEMA QUE RESUELVE (medido, no intuido): la versión anterior tenía
+    el 98,6 % de su energía por debajo de 400 Hz. En un equipo con graves
+    eso suena impresionante, pero el altavoz del Voice PE es pequeño y no
+    baja de ~250 Hz, así que casi todo lo que sonaba era... nada. Se oía un
+    soplido sordo en vez de una explosión.
+
+    Así que aquí la energía se reparte a propósito por la banda que el
+    aparato SÍ reproduce (300 Hz - 8 kHz), y el grave se sugiere con
+    saturación en vez de intentar radiarlo.
+    """
     n = int(dur * SR)
     t = np.arange(n) / SR
 
-    # Golpe seco de entrada
-    crack = rng.standard_normal(n) * np.exp(-30.0 * t)
+    # 1) GOLPE. Transitorio brillante y cortísimo. Es lo que el oído lee
+    #    como "algo ha reventado"; sin esto, cualquier ruido grave suena a
+    #    viento. Se apaga en ~70 ms.
+    golpe = rng.standard_normal(n) * np.exp(-45.0 * t)
+    golpe = filtro(golpe, 1200, 9000) * brillo
 
-    # Cuerpo grave: ruido marrón filtrado con caída lenta
-    cuerpo = paso_bajo(ruido_marron(n, rng), alpha=0.03)
-    cuerpo *= np.exp(-1.6 * t)
+    # 2) CUERPO. La capa principal, justo en la banda del altavoz.
+    cuerpo = filtro(ruido_marron(n, rng), 300, 3000)
+    cuerpo *= np.exp(-3.0 * t)
 
-    # Barrido descendente que da la sensación de "boom"
-    f = 220.0 * np.exp(-1.9 * t) + 28.0
-    fase = 2 * np.pi * np.cumsum(f) / SR
-    sub = np.sin(fase) * np.exp(-1.1 * t)
+    # 3) RUGIDO. Cola grave-media larga con un temblor lento, para que no
+    #    decaiga como una nota limpia sino como algo que sigue ardiendo.
+    rugido = filtro(ruido_marron(n, rng), 150, 1000)
+    rugido *= np.exp(-1.1 * t) * (1.0 + 0.30 * np.sin(2 * np.pi * 6.5 * t + rng.random() * 6.0))
 
-    mix = 0.45 * crack + 1.0 * cuerpo + 0.8 * sub
+    # 4) SUB. Barrido descendente, a nivel bajo: no se va a oír tal cual en
+    #    este altavoz, pero la saturación de más abajo convierte su energía
+    #    en armónicos que sí se oyen y el oído reconstruye el grave.
+    f = 160.0 * np.exp(-4.0 * t) + 40.0
+    sub = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-2.0 * t)
+
+    # 5) METRALLA. Chasquidos sueltos, más densos al principio: cascotes.
+    #    Es el detalle que separa "explosión" de "golpe de bombo".
+    metralla = np.zeros(n)
+    for _ in range(int(30 * dur)):
+        pos = (rng.random() ** 1.7) * dur * 0.85
+        largo = int(0.02 * SR)
+        cascote = rng.standard_normal(largo) * np.exp(-90.0 * np.arange(largo) / SR)
+        mezclar(metralla, cascote * (0.35 + 0.65 * rng.random()), pos)
+    metralla = filtro(metralla, 800, 6000)
+
+    mix = (1.25 * golpe + 1.15 * cuerpo + 0.85 * rugido
+           + 0.35 * sub + 0.60 * metralla)
     return mix / (np.max(np.abs(mix)) + 1e-9) * 0.95
 
 
 def explosion_grande(rng):
-    """Varias explosiones encadenadas (boom... boom-BOOM) en vez de una
-    sola corta: mas larga y mas contundente. Se solapan un poco para que
-    no suene como golpes sueltos sino como una cadena continua."""
-    duraciones = [1.6, 1.8, 3.5]
-    intensidades = [0.55, 0.75, 1.0]
-    offsets = [0.0, 0.5, 1.15]
-    total_dur = offsets[-1] + duraciones[-1] + 0.3
-    total = np.zeros(int(total_dur * SR))
-    for dur, inten, off in zip(duraciones, intensidades, offsets):
-        mezclar(total, explosion(dur=dur, rng=rng) * inten, off)
+    """Tres detonaciones encadenadas (boom... boom-BOOM), saturadas y con
+    reverb, en ~6,2 s. La gorda va la última: así la secuencia crece en vez
+    de desinflarse, que es lo que hace que suene a catástrofe y no a
+    petardo.
+
+    La duración total está atada a `cola` en pista_cuenta_atras() y a los
+    delays de standalone.yaml: si la alargas, hay que tocar los dos.
+    """
+    partes = [
+        # (duracion, intensidad, cuando empieza, brillo)
+        (1.4, 0.45, 0.00, 1.2),
+        (1.8, 0.65, 0.30, 1.0),
+        (4.2, 1.00, 0.85, 0.9),
+    ]
+    total = np.zeros(int((partes[-1][2] + partes[-1][0]) * SR))
+    for dur, inten, off, brillo in partes:
+        mezclar(total, explosion(dur=dur, rng=rng, brillo=brillo) * inten, off)
+
+    # Orden importante:
+    #  1. saturar genera los armónicos del sub (el grave "imaginario"),
+    #  2. y ENTONCES se quita el sub real con un paso alto: ya ha hecho su
+    #     trabajo y lo único que hacía era comerse el margen de volumen sin
+    #     que este altavoz pudiera radiarlo. Es la cadena clásica de
+    #     realce de graves en altavoces pequeños.
+    #  3. la reverb va al final, así recoge también los armónicos nuevos.
+    total = saturar(total, drive=3.2)
+    total = filtro(total, lo=110)
+    total = reverberar(total, rng, dur_cola=1.15, mezcla=0.28)
+
     pico = np.max(np.abs(total))
     if pico > 0:
         total = total / pico * 0.95
@@ -226,7 +320,9 @@ def main():
     # La cuenta atras se llama siempre igual (cuenta_atras.*) porque es el
     # nombre que espera esphome/standalone.yaml; los segundos van en el log.
     guardar("cuenta_atras", pista_cuenta_atras(args.seg, rng), args.out, flac=True)
-    guardar("bomba_boom", explosion_grande(rng), args.out)
+    # El boom también en FLAC: es de los sonidos importantes y así va en el
+    # formato nativo del pipeline de anuncios, sin decodificar MP3.
+    guardar("bomba_boom", explosion_grande(rng), args.out, flac=True)
     guardar("bomba_ok", desactivada(rng), args.out)
     print()
     print("Listo. Copia cuenta_atras.flac y los mp3 a esphome/sounds/.")

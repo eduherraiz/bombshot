@@ -124,9 +124,32 @@ redonda, mecha pintada). Nada de estética realista.**
      Repara los cables antes de empezar." (`snd_no_armar`), que suena con
      el aro en amarillo si se intenta armar con un cable ya cortado.
    - **Explosión contundente**: `explosion_grande()` encadena tres
-     explosiones solapadas de intensidad creciente (~5 s). Se usa tanto
-     para el boom suelto (cable equivocado) como para el final de la
-     pista de cuenta atrás.
+     detonaciones solapadas de intensidad creciente (~6,2 s), la gorda la
+     última. Se usa tanto para el boom suelto (cable equivocado) como para
+     el final de la pista de cuenta atrás.
+   - **EL ALTAVOZ DEL VOICE PE NO TIENE GRAVES, y eso cambia cómo hay que
+     sintetizar** (2026-08-12, medido). La primera explosión "sonaba a
+     soplido" y el motivo era medible: tenía el **98,6 % de su energía por
+     debajo de 400 Hz**, y este altavoz no baja de ~250 Hz. Todo el trabajo
+     estaba en frecuencias que el aparato no radia. Lo que lo arregló:
+     - Repartir la energía por la banda que sí reproduce (300 Hz - 8 kHz):
+       un transitorio brillante de 1,2-9 kHz (el "algo ha reventado"), el
+       cuerpo en 300-3000 Hz, el rugido en 150-1000 Hz y metralla
+       (chasquidos sueltos) en 800-6000 Hz.
+     - **Saturar y LUEGO filtrar el grave**, en ese orden: la saturación
+       genera los armónicos del sub y el oído reconstruye la fundamental
+       que falta, así que después se puede quitar el sub real (que solo se
+       comía margen de volumen). Es la cadena clásica de realce de graves
+       para altavoces pequeños, y aquí se nota mucho.
+     - Reverb por convolución al final: una explosión seca suena a
+       petardo; lo que la hace sonar grande es el eco del sitio.
+     - Resultado: energía por encima de 300 Hz del 1,4 % al 76,7 %, y el
+       "punch" audible (RMS de la banda >300 Hz en el primer segundo y
+       medio) ×6.
+     - **Regla general para futuros sonidos de este cacharro:** si suena
+       flojo, antes de subir el volumen mira dónde está la energía. Los
+       filtros están en `audio/generar_audio.py` (`filtro`, `saturar`,
+       `reverberar`), en FFT y sin scipy, que en esta máquina no hay.
 
    **CÓMO SE MANEJA EL AUDIO (reescrito el 2026-08-11, esto es lo que da
    estabilidad — no volver al modelo anterior):**

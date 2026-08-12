@@ -52,12 +52,9 @@ redonda, mecha pintada). Nada de estética realista.**
    - Crítico: `reboot_timeout: 0s` en `api:` y `wifi:` — de fábrica el
      dispositivo se reinicia solo a los 15 min sin cliente API o sin WiFi, lo
      que mataría cualquier partida en marcha en una casa sin mi red.
-   - El número de serie se lee dígito a dígito con 10 clips cortos
-     pregrabados (`d0.flac`...`d9.flac`, generados con `espeak-ng` vía
-     `audio/generar_digitos.py`) en vez de TTS en vivo. Los `audio_file`
-     se llaman `snd_d0`...`snd_d9` **a propósito**: el nombre se construye
-     concatenando (`"snd_d" + std::to_string(digito)`), así que renombrarlos
-     rompe la lectura de la serie.
+   - El número se dice con clips pregrabados (`espeak-ng` vía
+     `audio/generar_numeros.py`) en vez de TTS en vivo — ver punto 5 para
+     el detalle de las listas y del nombrado `snd_n<numero>`.
    - La intro de MacGyver (`audio/manual/macgyver_intro.mp3`, 67.6 s,
      suministrada por el usuario — no generada ni descargada por Claude)
      suena **al ganar**, recortada al tramo 19s-30s (~11 s,
@@ -127,9 +124,32 @@ redonda, mecha pintada). Nada de estética realista.**
      Repara los cables antes de empezar." (`snd_no_armar`), que suena con
      el aro en amarillo si se intenta armar con un cable ya cortado.
    - **Explosión contundente**: `explosion_grande()` encadena tres
-     explosiones solapadas de intensidad creciente (~5 s). Se usa tanto
-     para el boom suelto (cable equivocado) como para el final de la
-     pista de cuenta atrás.
+     detonaciones solapadas de intensidad creciente (~6,2 s), la gorda la
+     última. Se usa tanto para el boom suelto (cable equivocado) como para
+     el final de la pista de cuenta atrás.
+   - **EL ALTAVOZ DEL VOICE PE NO TIENE GRAVES, y eso cambia cómo hay que
+     sintetizar** (2026-08-12, medido). La primera explosión "sonaba a
+     soplido" y el motivo era medible: tenía el **98,6 % de su energía por
+     debajo de 400 Hz**, y este altavoz no baja de ~250 Hz. Todo el trabajo
+     estaba en frecuencias que el aparato no radia. Lo que lo arregló:
+     - Repartir la energía por la banda que sí reproduce (300 Hz - 8 kHz):
+       un transitorio brillante de 1,2-9 kHz (el "algo ha reventado"), el
+       cuerpo en 300-3000 Hz, el rugido en 150-1000 Hz y metralla
+       (chasquidos sueltos) en 800-6000 Hz.
+     - **Saturar y LUEGO filtrar el grave**, en ese orden: la saturación
+       genera los armónicos del sub y el oído reconstruye la fundamental
+       que falta, así que después se puede quitar el sub real (que solo se
+       comía margen de volumen). Es la cadena clásica de realce de graves
+       para altavoces pequeños, y aquí se nota mucho.
+     - Reverb por convolución al final: una explosión seca suena a
+       petardo; lo que la hace sonar grande es el eco del sitio.
+     - Resultado: energía por encima de 300 Hz del 1,4 % al 76,7 %, y el
+       "punch" audible (RMS de la banda >300 Hz en el primer segundo y
+       medio) ×6.
+     - **Regla general para futuros sonidos de este cacharro:** si suena
+       flojo, antes de subir el volumen mira dónde está la energía. Los
+       filtros están en `audio/generar_audio.py` (`filtro`, `saturar`,
+       `reverberar`), en FFT y sin scipy, que en esta máquina no hay.
 
    **CÓMO SE MANEJA EL AUDIO (reescrito el 2026-08-11, esto es lo que da
    estabilidad — no volver al modelo anterior):**
@@ -175,18 +195,75 @@ redonda, mecha pintada). Nada de estética realista.**
      y la partida seguía otros 150 s en silencio. Además movía el volumen
      a la vez, porque `!extend` concatena y la acción de fábrica se
      seguía ejecutando.
+   - **La celebración dura lo que dura la canción.** `bomba_ganar` se queda
+     vivo los ~11 s de la intro encadenando efectos, en vez de terminar
+     nada más lanzarla. No es solo estético: el `interval` que devuelve la
+     bomba a "espera" comprueba que no haya scripts en marcha, así que
+     mientras el script vive nadie apaga el aro. Antes las LEDs se apagaban
+     a mitad de canción en cuanto se reempalmaban los cables — o incluso
+     sin tocarlos, si los dos extremos recién cortados se rozaban un
+     instante (`delayed_off: 300ms` y el reset lo daba por "empalmado").
+     Rearmar durante la celebración sigue funcionando: `bomba_armar` para
+     el script y corta la música.
    - **Efectos de LED propios en `led_ring`** (`id: !extend led_ring`, de
-     fábrica no trae ninguno): `leyendo` (celeste/blanco alternando,
-     durante la serie), `tension` (rojo parpadeante, durante el tic-tac y
-     durante toda la locución de derrota), `fiesta` (verde y colores, al
-     ganar). Ver en el punto 2 lo de apagar `voice_assistant_leds`: sin
-     eso, el firmware de fábrica repinta el aro por encima.
+     fábrica no trae ninguno). Ver en el punto 2 lo de apagar
+     `voice_assistant_leds`: sin eso, el firmware de fábrica repinta el aro
+     por encima.
+     - `leyendo` — celeste/blanco alternando, mientras dice el número.
+     - `tension` / `tension_rapida` / `tension_critica` — los tres tramos de
+       la cuenta atrás. **No son arbitrarios: marcan los dos cambios de
+       ritmo del tic-tac**, que salen de `intervalo()` en
+       `audio/generar_audio.py` (tic cada 0,50 s hasta que quedan 10 s,
+       cada 0,25 s hasta que quedan 5, y cada 0,12 s en los últimos 5). Van
+       de pulso rojo tranquilo → parpadeo naranja/rojo al doble de
+       velocidad → cometa girando a toda velocidad. El último es
+       movimiento, no fogonazo a pantalla completa: se lee igual de urgente
+       y es menos agresivo para la vista.
+       **Los tres `delay` de `bomba_partida` tienen que sumar los 30 s de la
+       pista de audio**; si se regenera el audio con otra duración, hay que
+       recalcularlos.
+     - `fiesta` / `arcoiris` / `chispas` — se encadenan durante la canción
+       de victoria (ver punto 4, "la celebración dura lo que dura la
+       canción").
 
-5. **Mecánica del juego (modo regla, no azar puro):** al armar se genera un
-   número de serie de 4 dígitos que se lee en voz alta.
-   - último dígito PAR → cortar ROJO
-   - último dígito IMPAR → cortar AZUL
+5. **Mecánica del juego (modo regla, no azar puro):** al armar se sortea un
+   número que se dice en voz alta, dos veces.
+   - número **PRIMO** → cortar ROJO
+   - número **NO primo** → cortar AZUL
    Hay que imprimir la regla en una tarjeta para los jugadores.
+   - Antes era "último dígito par/impar" sobre un número de 4 dígitos, y
+     resultó **demasiado obvio**: quien sabía la regla no tenía que pensar
+     nada. Con primos hay que pararse un segundo, que es justo la gracia.
+   - Los números salen de dos listas de 20 (`audio/generar_numeros.py`, que
+     es la **fuente de la verdad**): los 20 primeros primos, y 20 compuestos
+     elegidos a mano para que se vea a simple vista que no son primos
+     (pares, acabados en 0 o 5, tabla del 3). Nada de 51, 57 o 91, que hacen
+     dudar hasta al que sabe la regla — el juego es adivinar la regla, no
+     hacer aritmética mental con alcohol encima.
+   - Las dos listas están **repartidas por el mismo rango** (4 primos y 4
+     compuestos por debajo de 10, 8 y 8 entre 11 y 40, 8 y 8 entre 41 y 71).
+     Si los compuestos fuesen todos pequeños, "número grande = primo" sería
+     un atajo que se carga el juego.
+   - Se sortea primero **si la respuesta es primo** y luego qué número
+     concreto, en vez de sortear entre los 40 de golpe: así cada cable sale
+     exactamente el 50 % de las veces pase lo que pase con las listas.
+   - El número se dice **entero** ("cuarenta y siete"), no dígito a dígito,
+     porque la regla va del número completo. Y **dos veces**, porque en una
+     fiesta con ruido una sola palabra corta se pierde.
+   - Los 40 clips (`n2.flac`...`n71.flac`) se sintetizan pasándole la cifra
+     ("47") a espeak-ng, que ya sabe decirla en español: así no hay que
+     escribir 40 nombres a mano y no puede haber erratas. Son FLAC 48 kHz
+     mono **16 bits** — la mitad de tamaño que 24 bits, que con 40 clips ya
+     se nota (1,4 MB de flash).
+   - **Ojo al tocar las listas:** el nombre del audio se construye
+     concatenando (`"snd_n" + std::to_string(numero)`), así que un número en
+     el array de C++ sin su `audio_file` correspondiente **no da error de
+     compilación, da una ronda muda**. Por eso `generar_numeros.py --yaml`
+     escupe los dos bloques ya listos para pegar.
+   - Los clips de dígitos sueltos (`d0.flac`...`d9.flac`,
+     `audio/generar_digitos.py`) ya no los usa el firmware. El script y los
+     ficheros siguen en `audio/out/` por si alguna vez se quiere volver a
+     leer un número largo cifra a cifra.
 
 6. **Rearme entre partidas:** los cables van a una regleta de tornillo. Se
    pelan 5 mm y se vuelven a atornillar. Debe llevar menos de un minuto o la
