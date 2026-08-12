@@ -70,7 +70,7 @@ Internal pull-ups: intact = LOW, cut = HIGH.
 ### Build and flash
 
 ```bash
-cd bomba-fiesta/esphome
+cd src/esphome
 cp secrets.yaml.example secrets.yaml     # your Wi-Fi (only for OTA/logs)
 esphome run standalone.yaml --device /dev/ttyACM0
 ```
@@ -84,7 +84,7 @@ jingle. See [The intro audio](#the-intro-audio).
 ### Layout
 
 ```
-bomba-fiesta/
+src/
   esphome/standalone.yaml    the whole game; imports the official
                              home-assistant-voice-pe firmware as a package
   esphome/test_cables.yaml   minimal firmware to debug the Grove port
@@ -128,6 +128,18 @@ at length in `CLAUDE.md` and in the header of `standalone.yaml`:
   are two partitions over the *same* 12 physical LEDs, and with no Home
   Assistant connected the stock firmware keeps the second one running its red
   "disconnected" twinkle right over your effects.
+
+### License
+
+MIT — see [LICENSE](LICENSE). It covers the code, the YAML and the sounds
+produced by the scripts in `src/audio/`. It does **not** cover the MacGyver
+theme snippet, which is third-party material and is deliberately not part of
+this repo — see [The intro audio](#the-intro-audio).
+
+The Home Assistant Voice PE firmware is not vendored here: `standalone.yaml`
+imports it at build time from
+[esphome/home-assistant-voice-pe](https://github.com/esphome/home-assistant-voice-pe),
+under its own license.
 
 ---
 
@@ -190,7 +202,7 @@ Pull-up interno: intacto = LOW, cortado = HIGH.
 ### Compilar y flashear
 
 ```bash
-cd bomba-fiesta/esphome
+cd src/esphome
 cp secrets.yaml.example secrets.yaml     # tu WiFi (solo para OTA/logs)
 esphome run standalone.yaml --device /dev/ttyACM0
 ```
@@ -205,7 +217,7 @@ victoria. Ver [El audio de la intro](#el-audio-de-la-intro).
 ### Estructura
 
 ```
-bomba-fiesta/
+src/
   esphome/standalone.yaml    el juego entero; importa el firmware oficial
                              de home-assistant-voice-pe como paquete
   esphome/test_cables.yaml   firmware mínimo para depurar el Grove
@@ -248,3 +260,15 @@ desaprender para que fuese fiable. Las tres están explicadas a fondo en
   son dos particiones sobre las *mismas* 12 LEDs físicas, y sin Home
   Assistant conectado el firmware de fábrica mantiene la segunda con su
   parpadeo rojo de "sin conexión" pintando por encima de tus efectos.
+
+### Licencia
+
+MIT — ver [LICENSE](LICENSE). Cubre el código, el YAML y los sonidos que
+generan los scripts de `src/audio/`. **No** cubre el trozo de la sintonía de
+MacGyver, que es material de terceros y que a propósito no está en este repo
+— ver [El audio de la intro](#el-audio-de-la-intro).
+
+El firmware del Home Assistant Voice PE no está copiado aquí:
+`standalone.yaml` lo importa al compilar desde
+[esphome/home-assistant-voice-pe](https://github.com/esphome/home-assistant-voice-pe),
+con su propia licencia.

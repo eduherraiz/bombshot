@@ -38,6 +38,6 @@ macgyver_intro*.mp3
 #   bomba_30.flac         FLAC de 24 bits, sustituido por cuenta_atras.flac
 #   cuenta_atras_partes/  experimento de trocear la pista, abandonado
 /bomba_60.mp3
-bomba-fiesta/audio/out/bomba_60.mp3
+src/audio/out/bomba_60.mp3
 bomba_30.flac
 cuenta_atras_partes/
