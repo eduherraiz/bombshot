@@ -31,6 +31,15 @@ venv/
 # `sounds/intro.mp3`. Ver el README, sección "El audio de la intro".
 macgyver_intro*.mp3
 
+# --- Copias de seguridad del firmware --------------------------------
+# backups/ guarda los binarios ya probados, por si hay que volver atrás.
+# NO se suben, por dos motivos: los audio_file se compilan DENTRO del
+# firmware, así que el .bin lleva incrustada la canción de MacGyver
+# (subirlo sería redistribuirla igual que subir el MP3), y son 30 MB por
+# versión. Lo que sí va a Git son los tags (v0.1, ...), que apuntan a la
+# fuente exacta de cada binario. Ver backups/README.md.
+backups/
+
 # --- Restos de versiones anteriores ----------------------------------
 # Nada de esto lo usa el firmware actual. Se ignora en vez de borrarlo
 # por si algún día quieres recuperar alguno; se pueden borrar sin miedo.
