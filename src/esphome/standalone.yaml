@@ -189,7 +189,8 @@ light:
             for (int i = 0; i < it.size(); i++) it[i] = c;
             on = !on;
       - addressable_lambda:
-          # Rojo pulsante: tic-tac de la cuenta atras y locucion de derrota.
+          # Rojo pulsante tranquilo: primeros 20 s de cuenta atras (tic cada
+          # medio segundo) y locucion de derrota.
           name: "tension"
           update_interval: 300ms
           lambda: |-
@@ -199,6 +200,38 @@ light:
             Color c = on ? rojo : apagado;
             for (int i = 0; i < it.size(); i++) it[i] = c;
             on = !on;
+      - addressable_lambda:
+          # Segundo tramo (quedan 10 s, el tic va al doble): mismo pulso pero
+          # al doble de velocidad y cambiando de color en vez de apagarse,
+          # que se nota mucho mas que un simple "parpadea mas rapido".
+          name: "tension_rapida"
+          update_interval: 150ms
+          lambda: |-
+            static bool on = false;
+            Color rojo(255, 0, 0);
+            Color naranja(255, 90, 0);
+            Color c = on ? rojo : naranja;
+            for (int i = 0; i < it.size(); i++) it[i] = c;
+            on = !on;
+      - addressable_lambda:
+          # Ultimos 5 s (el tic ya es casi continuo): cometa de 3 LEDs dando
+          # vueltas a toda velocidad sobre rojo oscuro. Se pasa de "parpadeo"
+          # a "movimiento", que es un cambio de lenguaje, no de ritmo.
+          name: "tension_critica"
+          update_interval: 60ms
+          lambda: |-
+            static uint8_t cabeza = 0;
+            for (int i = 0; i < it.size(); i++) {
+              int d = (i - cabeza + it.size()) % it.size();
+              if (d == 0)      it[i] = Color(255, 255, 255);
+              else if (d == 1) it[i] = Color(255, 40, 0);
+              else if (d == 2) it[i] = Color(120, 0, 0);
+              else             it[i] = Color(25, 0, 0);
+            }
+            cabeza = (cabeza + 1) % it.size();
+      # --- Los tres de la celebracion. Se van encadenando mientras dura la
+      #     cancion de victoria (ver bomba_ganar), para que el aro no se
+      #     quede haciendo lo mismo 11 segundos.
       - addressable_lambda:
           # Victoria: colores de fiesta con predominio de verde.
           name: "fiesta"
@@ -213,6 +246,29 @@ light:
               it[i] = paleta[(i + offset) % 6];
             }
             offset = (offset + 1) % 6;
+      - addressable_lambda:
+          # Arcoiris girando: el aro entero recorre el circulo de color.
+          # hsv_to_rgb viene de ESPHome y lo usa el propio firmware de
+          # fabrica en sus efectos, asi que es seguro llamarlo aqui.
+          name: "arcoiris"
+          update_interval: 60ms
+          lambda: |-
+            static int tono = 0;
+            for (int i = 0; i < it.size(); i++) {
+              float r = 0, g = 0, b = 0;
+              hsv_to_rgb((tono + i * 30) % 360, 1.0f, 1.0f, r, g, b);
+              it[i] = Color(r * 255, g * 255, b * 255);
+            }
+            tono = (tono + 8) % 360;
+      - addressable_lambda:
+          # Destellos blancos aleatorios sobre verde: "confeti".
+          name: "chispas"
+          update_interval: 90ms
+          lambda: |-
+            for (int i = 0; i < it.size(); i++) {
+              it[i] = (random_uint32() % 5 == 0) ? Color(255, 255, 255)
+                                                 : Color(0, 140, 40);
+            }
 
 
 # ---------------------------------------------------------------------
@@ -352,28 +408,93 @@ audio_file:
   - id: snd_no_armar
     file: sounds/no_armar.flac
 
-  # Los ids TIENEN que ser snd_d0..snd_d9: se construyen por concatenacion
-  # ("snd_d" + numero) al leer el numero de serie.
-  - id: snd_d0
-    file: sounds/d0.flac
-  - id: snd_d1
-    file: sounds/d1.flac
-  - id: snd_d2
-    file: sounds/d2.flac
-  - id: snd_d3
-    file: sounds/d3.flac
-  - id: snd_d4
-    file: sounds/d4.flac
-  - id: snd_d5
-    file: sounds/d5.flac
-  - id: snd_d6
-    file: sounds/d6.flac
-  - id: snd_d7
-    file: sounds/d7.flac
-  - id: snd_d8
-    file: sounds/d8.flac
-  - id: snd_d9
-    file: sounds/d9.flac
+  # LOS 40 NUMEROS DEL JUEGO (20 primos + 20 compuestos evidentes).
+  # Generados por audio/generar_numeros.py, que es la FUENTE DE LA VERDAD
+  # de las dos listas: si las tocas alli, vuelve a ejecutarlo con --yaml y
+  # pega aqui la salida Y los arrays del lambda de bomba_partida.
+  # Los ids TIENEN que llamarse snd_n<numero>: el nombre se construye
+  # concatenando ("snd_n" + std::to_string(n)) al leer el numero, asi que
+  # un numero en el array sin su audio_file aqui = ronda muda.
+  - id: snd_n2
+    file: sounds/n2.flac
+  - id: snd_n3
+    file: sounds/n3.flac
+  - id: snd_n4
+    file: sounds/n4.flac
+  - id: snd_n5
+    file: sounds/n5.flac
+  - id: snd_n6
+    file: sounds/n6.flac
+  - id: snd_n7
+    file: sounds/n7.flac
+  - id: snd_n8
+    file: sounds/n8.flac
+  - id: snd_n9
+    file: sounds/n9.flac
+  - id: snd_n11
+    file: sounds/n11.flac
+  - id: snd_n12
+    file: sounds/n12.flac
+  - id: snd_n13
+    file: sounds/n13.flac
+  - id: snd_n15
+    file: sounds/n15.flac
+  - id: snd_n17
+    file: sounds/n17.flac
+  - id: snd_n18
+    file: sounds/n18.flac
+  - id: snd_n19
+    file: sounds/n19.flac
+  - id: snd_n21
+    file: sounds/n21.flac
+  - id: snd_n23
+    file: sounds/n23.flac
+  - id: snd_n25
+    file: sounds/n25.flac
+  - id: snd_n27
+    file: sounds/n27.flac
+  - id: snd_n29
+    file: sounds/n29.flac
+  - id: snd_n31
+    file: sounds/n31.flac
+  - id: snd_n33
+    file: sounds/n33.flac
+  - id: snd_n36
+    file: sounds/n36.flac
+  - id: snd_n37
+    file: sounds/n37.flac
+  - id: snd_n41
+    file: sounds/n41.flac
+  - id: snd_n43
+    file: sounds/n43.flac
+  - id: snd_n44
+    file: sounds/n44.flac
+  - id: snd_n47
+    file: sounds/n47.flac
+  - id: snd_n48
+    file: sounds/n48.flac
+  - id: snd_n50
+    file: sounds/n50.flac
+  - id: snd_n53
+    file: sounds/n53.flac
+  - id: snd_n55
+    file: sounds/n55.flac
+  - id: snd_n59
+    file: sounds/n59.flac
+  - id: snd_n60
+    file: sounds/n60.flac
+  - id: snd_n61
+    file: sounds/n61.flac
+  - id: snd_n63
+    file: sounds/n63.flac
+  - id: snd_n66
+    file: sounds/n66.flac
+  - id: snd_n67
+    file: sounds/n67.flac
+  - id: snd_n70
+    file: sounds/n70.flac
+  - id: snd_n71
+    file: sounds/n71.flac
 
 
 # ---------------------------------------------------------------------
@@ -451,14 +572,28 @@ script:
     mode: restart
     then:
       - lambda: |-
-          id(bomba_serie) = 1000 + (random_uint32() % 9000);
-          // REGLA (imprimela en la tarjeta de los jugadores):
-          //   ultimo digito PAR   -> cortar ROJO
-          //   ultimo digito IMPAR -> cortar AZUL
-          id(bomba_cable_ok) = (id(bomba_serie) % 2 == 0) ? 0 : 1;
+          // REGLA DEL JUEGO (imprimela en la tarjeta de los jugadores):
+          //   numero PRIMO    -> cortar ROJO
+          //   numero NO primo -> cortar AZUL
+          //
+          // Se sortea primero SI la respuesta es primo y luego que numero
+          // concreto, en vez de sortear entre los 40 de golpe: asi los dos
+          // cables salen justo el 50% de las veces pase lo que pase con las
+          // listas. Las listas son las de audio/generar_numeros.py, que es
+          // la fuente de la verdad -- si las cambias alli, pega aqui la
+          // salida de `python3 generar_numeros.py --yaml` (arrays Y
+          // audio_file de arriba, o la bomba se quedara muda).
+          static const int PRIMOS[20]     = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71};
+          static const int COMPUESTOS[20] = {4, 6, 8, 9, 12, 15, 18, 21, 25, 27, 33, 36, 44, 48, 50, 55, 60, 63, 66, 70};
+
+          bool es_primo = (random_uint32() % 2) == 0;
+          id(bomba_serie) = es_primo ? PRIMOS[random_uint32() % 20]
+                                     : COMPUESTOS[random_uint32() % 20];
+          id(bomba_cable_ok) = es_primo ? 0 : 1;   // 0 = rojo, 1 = azul
           id(bomba_estado) = 1;   // LEYENDO: ya se puede cortar
-          ESP_LOGI("bomba", "ronda nueva: serie=%d -> cable_ok=%s",
-                   id(bomba_serie), id(bomba_cable_ok) == 0 ? "ROJO" : "AZUL");
+          ESP_LOGI("bomba", "ronda nueva: numero=%d (%s) -> cable_ok=%s",
+                   id(bomba_serie), es_primo ? "primo" : "no primo",
+                   id(bomba_cable_ok) == 0 ? "ROJO" : "AZUL");
 
       - light.turn_off: {id: voice_assistant_leds}
       - light.turn_on:
@@ -466,32 +601,30 @@ script:
           effect: "leyendo"
           brightness: 100%
 
-      # Respiro antes del primer digito: deja terminar el "clic" de triple
+      # Respiro antes de hablar: deja terminar el "clic" de triple
       # pulsacion del firmware de fabrica (1.5 s) en vez de cortarlo a
       # medias, y da un instante de suspense.
       - delay: 1600ms
 
-      # Numero de serie, digito a digito. 850 ms por digito: el clip mas
-      # largo son 0.50 s, asi que sobra margen y NO hay que sondear si el
-      # audio ha terminado (que era justo lo fragil de antes).
+      # El numero, DOS VECES. Se dice entero ("cuarenta y siete", no
+      # "cuatro siete") porque la regla va del numero completo, y repetido
+      # porque en una fiesta con ruido una sola palabra corta se pierde.
+      # 1700 ms: el clip mas largo es "cincuenta y cinco" con 1.49 s.
       - script.execute:
           id: bomba_sonar
-          fichero: !lambda 'return "snd_d" + std::to_string((id(bomba_serie) / 1000) % 10);'
-      - delay: 850ms
+          fichero: !lambda 'return "snd_n" + std::to_string(id(bomba_serie));'
+      - delay: 1700ms
       - script.execute:
           id: bomba_sonar
-          fichero: !lambda 'return "snd_d" + std::to_string((id(bomba_serie) / 100) % 10);'
-      - delay: 850ms
-      - script.execute:
-          id: bomba_sonar
-          fichero: !lambda 'return "snd_d" + std::to_string((id(bomba_serie) / 10) % 10);'
-      - delay: 850ms
-      - script.execute:
-          id: bomba_sonar
-          fichero: !lambda 'return "snd_d" + std::to_string(id(bomba_serie) % 10);'
-      - delay: 1100ms
+          fichero: !lambda 'return "snd_n" + std::to_string(id(bomba_serie));'
+      - delay: 1900ms
 
       # ---- CUENTA ATRAS ----
+      # Las LEDs van marcando los dos cambios de ritmo del tic-tac, que no
+      # son arbitrarios: salen de `intervalo()` en audio/generar_audio.py.
+      # Con una pista de 30 s el tic suena cada 0.50 s hasta que quedan 10,
+      # cada 0.25 s hasta que quedan 5, y cada 0.12 s en los ultimos 5.
+      # Los tres delays de aqui TIENEN que sumar los 30 s de la pista.
       - lambda: 'id(bomba_estado) = 2;'
       - light.turn_off: {id: voice_assistant_leds}
       - light.turn_on:
@@ -502,8 +635,25 @@ script:
           id: bomba_sonar
           fichero: "snd_cuenta_atras"
 
-      # 30 s de tic-tac. Este delay ES el cronometro de la partida.
-      - delay: 30s
+      # 0-20 s: tic cada 0.50 s -> pulso rojo tranquilo
+      - delay: 20s
+
+      # 20-25 s: el tic se acelera al doble y el tono se vuelve agudo
+      #          -> parpadeo naranja/rojo, sin negro de por medio
+      - light.turn_on:
+          id: led_ring
+          effect: "tension_rapida"
+          brightness: 100%
+      - delay: 5s
+
+      # 25-30 s: tic casi continuo -> cometa rojo girando a toda velocidad
+      #          (girar, no dar fogonazos a pantalla completa: se lee igual
+      #          de urgente y es menos agresivo para la vista)
+      - light.turn_on:
+          id: led_ring
+          effect: "tension_critica"
+          brightness: 100%
+      - delay: 5s
 
       # Se acabo el tiempo y nadie corto nada. NO lanzamos el boom: el
       # propio fichero ya explota justo aqui (segundo 30 de 36.2), asi que
@@ -515,6 +665,15 @@ script:
       - script.execute: bomba_derrota_locucion
 
   # -------------------------------------------------- GANAR
+  # La celebracion dura lo que dura la cancion (~11 s) y va cambiando de
+  # efecto cada pocos segundos. El script se queda vivo TODO ese rato a
+  # proposito: el `interval` que devuelve la bomba a "espera" comprueba que
+  # no haya scripts en marcha, asi que mientras suena la musica nadie apaga
+  # el aro. Antes el script terminaba justo despues de lanzar la cancion y
+  # las LEDs se apagaban a mitad de fiesta en cuanto se reempalmaban los
+  # cables (o en cuanto los dos extremos cortados se rozaban un instante).
+  # Rearmar durante la celebracion sigue funcionando: bomba_armar para este
+  # script y corta la musica.
   - id: bomba_ganar
     mode: restart
     then:
@@ -529,12 +688,35 @@ script:
           id: bomba_sonar
           fichero: "snd_ok"
       - delay: 1800ms          # bomba_ok.mp3 dura 1.4 s
+
       - script.execute:
           id: bomba_sonar
           fichero: "snd_intro"
-      # La intro (11 s) suena hasta el final por su cuenta. El script
-      # termina aqui a proposito: asi se puede rearmar de inmediato sin
-      # esperarla (bomba_armar la corta al empezar la ronda siguiente).
+      # A partir de aqui, 11 s de cancion repartidos en tres efectos.
+      - light.turn_on:
+          id: led_ring
+          effect: "arcoiris"
+          brightness: 100%
+      - delay: 3800ms
+      - light.turn_on:
+          id: led_ring
+          effect: "chispas"
+          brightness: 100%
+      - delay: 3600ms
+      - light.turn_on:
+          id: led_ring
+          effect: "fiesta"
+          brightness: 100%
+      - delay: 3800ms
+
+      # Se acabo la musica: verde fijo y suave, "desactivada", esperando a
+      # que reempalmen los cables para volver a espera.
+      - light.turn_on:
+          id: led_ring
+          red: 0%
+          green: 100%
+          blue: 20%
+          brightness: 60%
 
   # -------------------------------------------------- PERDER (cable malo)
   - id: bomba_perder

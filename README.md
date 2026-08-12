@@ -1,12 +1,12 @@
 # bombshot
 
 A defuse-the-bomb party game running entirely on a **Home Assistant Voice
-PE**. Triple-click the button, it reads out a serial number, 30 seconds of
-accelerating ticking start, and someone has to cut the right wire.
+PE**. Triple-click the button, it says a number out loud, 30 seconds of
+accelerating ticking start, and someone has to work out which wire to cut.
 
 *Juego de desactivar una bomba para fiestas, funcionando entero dentro de un
-**Home Assistant Voice PE**. Triple clic, lee un número de serie, arrancan 30
-segundos de tic-tac acelerando y alguien tiene que cortar el cable correcto.*
+**Home Assistant Voice PE**. Triple clic, dice un número en voz alta, arrancan
+30 segundos de tic-tac acelerando y hay que deducir qué cable cortar.*
 
 **[English](#english) · [Español](#español)**
 
@@ -28,13 +28,21 @@ a private party, among people who know what it is.
 ### How you play
 
 1. **Triple-click** the center button. The ring lights up and the device
-   reads out a 4-digit serial number.
+   says a number out loud, twice.
 2. The rule (print it on a card for the players):
-   **last digit EVEN → cut RED. ODD → cut BLUE.**
-3. You get 30 seconds of ticking. Cut the right wire and it is defused; cut
-   the wrong one, or run out of time, and it explodes (and someone drinks).
-4. Between rounds, screw the two wires back into the terminal block. The ring
-   turns off by itself once it sees them reconnected. Triple-click again.
+   **PRIME → cut RED. NOT PRIME → cut BLUE.**
+   The numbers are the first 20 primes and 20 obviously-composite ones
+   (even, ending in 0 or 5, small multiples of 3) — no 51 or 91 to trip up
+   someone doing mental arithmetic at a party.
+3. You get 30 seconds of ticking. The ring tracks the two points where the
+   ticking speeds up: calm red pulse → fast orange/red flicker → a red comet
+   spinning for the last five seconds. Cut the right wire and it is defused;
+   cut the wrong one, or run out of time, and it explodes (and someone
+   drinks).
+4. Defusing plays a victory tune with a light show on the ring for as long as
+   the music lasts. Between rounds, screw the two wires back into the
+   terminal block; the ring turns off by itself once it sees them
+   reconnected. Triple-click again.
 
 Triple-click re-arms from anywhere, including mid-round.
 
@@ -158,14 +166,21 @@ usarlo en interior, en una fiesta privada, entre gente que sabe lo que es.
 
 ### Cómo se juega
 
-1. **Triple clic** en el botón central. El aro se ilumina y el aparato lee un
-   número de serie de 4 dígitos.
+1. **Triple clic** en el botón central. El aro se ilumina y el aparato dice
+   un número en voz alta, dos veces.
 2. La regla (imprímela en una tarjeta para los jugadores):
-   **último dígito PAR → cortar ROJO. IMPAR → cortar AZUL.**
-3. Hay 30 segundos de tic-tac. Aciertas y se desactiva; fallas, o se acaba el
-   tiempo, y explota (y alguien bebe un chupito).
-4. Entre rondas, volver a atornillar los dos cables en la regleta. El aro se
-   apaga solo en cuanto detecta que están puestos. Triple clic otra vez.
+   **PRIMO → cortar ROJO. NO PRIMO → cortar AZUL.**
+   Los números son los 20 primeros primos y 20 compuestos que se ven a
+   simple vista (pares, acabados en 0 o 5, tabla del 3) — nada de 51 ni 91,
+   que hacen dudar a cualquiera con un par de copas encima.
+3. Hay 30 segundos de tic-tac. El aro marca los dos momentos en que el tic
+   se acelera: pulso rojo tranquilo → parpadeo naranja/rojo rápido → cometa
+   rojo girando en los últimos cinco segundos. Aciertas y se desactiva;
+   fallas, o se acaba el tiempo, y explota (y alguien bebe un chupito).
+4. Al desactivarla suena la música de victoria con un espectáculo de luces en
+   el aro durante toda la canción. Entre rondas, volver a atornillar los dos
+   cables en la regleta; el aro se apaga solo en cuanto detecta que están
+   puestos. Triple clic otra vez.
 
 El triple clic rearma desde cualquier punto, también a media partida.
 

@@ -8,7 +8,12 @@ contexto completo y las decisiones tomadas.
     audio/generar_audio.py    genera cuenta atras/boom/ok (numpy + ffmpeg)
                                la cuenta atras sale tambien en FLAC 48k/mono,
                                que es el formato nativo del Voice PE
-    audio/generar_digitos.py  genera d0..d9 hablados (espeak-ng via ctypes)
+    audio/generar_numeros.py  genera los 40 numeros hablados del juego y
+                               es la FUENTE DE LA VERDAD de las listas de
+                               primos/compuestos (--yaml escupe lo que hay
+                               que pegar en standalone.yaml)
+    audio/generar_digitos.py  genera d0..d9 hablados (ya no se usan, ver
+                               CLAUDE.md punto 5)
     audio/generar_perdiste.py genera las locuciones cortas (perdiste,
                                chupito, no_armar)
     audio/out/                audios ya generados, listos para usar
@@ -23,7 +28,7 @@ contexto completo y las decisiones tomadas.
 
 ## Puesta en marcha (plan A: autonomo, sin Home Assistant)
 
-1. `cd audio && python3 generar_audio.py` y `python3 generar_digitos.py`
+1. `cd audio && python3 generar_audio.py` y `python3 generar_numeros.py`
    (o usar los audios ya generados; ya están copiados en `esphome/sounds/`)
 2. `esphome config esphome/standalone.yaml` para validar, luego
    `esphome compile` / `esphome run` (o subirlo al Device Builder de
@@ -39,9 +44,9 @@ las decisiones raras son cicatrices de fallos reales en la fiesta.
 ## Cómo se juega
 
 1. **Triple clic** en el botón central: la bomba se arma y lee un número de
-   serie de 4 dígitos.
-2. Regla (imprímela en una tarjeta): **último dígito PAR → cortar ROJO;
-   IMPAR → cortar AZUL**.
+   número en voz alta, dos veces.
+2. Regla (imprímela en una tarjeta): **PRIMO → cortar ROJO; NO PRIMO →
+   cortar AZUL**.
 3. Hay 30 segundos de tic-tac. Aciertas y se desactiva; fallas o se acaba
    el tiempo y explota (y alguien bebe un chupito).
 4. Para la ronda siguiente: reempalmar los dos cables en la regleta (el aro
