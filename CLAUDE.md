@@ -118,11 +118,18 @@ redonda, mecha pintada). Nada de estética realista.**
      queda como alternativa (una línea en el `audio_file:`).
    - Sonido de derrota "Has perdido." + "Bebe un chupito." tras la
      explosión, como **dos clips separados** (una frase larga sonaba mal
-     en la primera mitad), `audio/generar_perdiste.py`, espeak-ng a
-     135 wpm — es un juego de fiesta con alcohol, asúmelo como parte del
-     diseño. Ese mismo script genera el aviso de "No se puede armar.
-     Repara los cables antes de empezar." (`snd_no_armar`), que suena con
-     el aro en amarillo si se intenta armar con un cable ya cortado.
+     en la primera mitad), espeak-ng a 135 wpm — es un juego de fiesta con
+     alcohol, asúmelo como parte del diseño.
+   - **Al ganar, la misma estructura**: "Has ganado." + "Coge un chicle.",
+     después de la canción y con el aro todavía de fiesta. Las dos salidas
+     del juego riman (veredicto + premio) y el premio del que gana es el
+     chiste de no tener que beber.
+   - `audio/generar_voces.py` (antes `generar_perdiste.py`, renombrado al
+     dejar de ser solo de derrotas) agrupa **todas** las locuciones cortas,
+     cada una en su clip: las cuatro de arriba y el aviso "No se puede
+     armar. Repara los cables antes de empezar." (`snd_no_armar`), que
+     suena con el aro en amarillo si se intenta armar con un cable ya
+     cortado.
    - **Explosión contundente**: `explosion_grande()` encadena tres
      detonaciones solapadas de intensidad creciente (~6,2 s), la gorda la
      última. Se usa tanto para el boom suelto (cable equivocado) como para

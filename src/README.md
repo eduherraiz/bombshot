@@ -14,8 +14,9 @@ contexto completo y las decisiones tomadas.
                                que pegar en standalone.yaml)
     audio/generar_digitos.py  genera d0..d9 hablados (ya no se usan, ver
                                CLAUDE.md punto 5)
-    audio/generar_perdiste.py genera las locuciones cortas (perdiste,
-                               chupito, no_armar)
+    audio/generar_voces.py    genera todas las locuciones cortas
+                               (perdiste, chupito, ganado, chicle,
+                               no_armar)
     audio/out/                audios ya generados, listos para usar
     esphome/standalone.yaml   PLAN A: YAML completo y autoconclusivo, listo
                                para compilar (importa el firmware oficial

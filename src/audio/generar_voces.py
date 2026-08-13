@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 """
-Genera las locuciones cortas del juego como clips separados (no una
-frase larga): "Has perdido.", "Bebe un chupito.", "No se puede armar...".
-Separarlas y bajar un poco la velocidad de voz mejora la claridad frente
-a una sola frase larga (la primera parte salia poco clara al pegarla
-junto a la segunda).
+Genera TODAS las locuciones cortas del juego, siempre como clips
+separados y nunca como una frase larga: "Has perdido.", "Bebe un
+chupito.", "Has ganado.", "Coge un chicle.", "No se puede armar...".
+
+Separarlas y bajar un poco la velocidad de voz mejora mucho la claridad:
+con una sola frase larga la primera mitad salia enredada. Y en clips
+sueltos el juego puede meter una pausa entre medias, que en una fiesta
+con ruido se agradece.
 
 Usa el mismo motor que los digitos (espeak-ng via ctypes, ver
 generar_digitos.py para el porque de ctypes en vez del binario).
 
-Salida (en ./out/): perdiste.flac, chupito.flac, no_armar.flac
+Salida (en ./out/): un .flac por entrada de FRASES.
 
 Uso:
-  python3 generar_perdiste.py
-  python3 generar_perdiste.py --velocidad 130
+  python3 generar_voces.py
+  python3 generar_voces.py --velocidad 130
 """
 
 import argparse
@@ -28,8 +31,13 @@ ESPEAK_CHARS_UTF8 = 1
 ESPEAK_RATE = 1  # id del parametro "velocidad" en espeak-ng
 
 FRASES = {
+    # Derrota
     "perdiste": "Has perdido.",
     "chupito": "Bebe un chupito.",
+    # Victoria (misma estructura: veredicto + premio)
+    "ganado": "Has ganado.",
+    "chicle": "Coge un chicle.",
+    # Aviso al intentar armar con un cable ya cortado
     "no_armar": "No se puede armar. Repara los cables antes de empezar.",
 }
 
