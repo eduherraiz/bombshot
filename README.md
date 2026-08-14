@@ -12,6 +12,22 @@ accelerating ticking start, and someone has to work out which wire to cut.
 
 ---
 
+<p align="center">
+  <img src="docs/img/caja-cerrada.jpg" width="80%"
+       alt="Closed cardboard case, painted black, BOMBSHOT stencilled on the front">
+</p>
+
+<p align="center">
+  <img src="docs/img/caja-abierta.jpg" width="49%"
+       alt="The case open, showing the fake dynamite, the two wires and the Voice PE">
+  <img src="docs/img/interior.jpg" width="49%"
+       alt="Top-down view of the inside: fake dynamite, blue and red wires, the Voice PE and a tin of gum">
+</p>
+
+**▶ [Watch a round being played / Ver una partida](https://youtu.be/b6ZcncrODek)**
+
+---
+
 ## English
 
 ### What it is
@@ -21,9 +37,12 @@ party. No custom PCB and no soldering iron required: everything runs on a
 stock Home Assistant Voice PE (ESP32-S3, speaker, 12-LED ring, button, dial),
 plus two wires plugged into its Grove port.
 
-It is a **toy**, decorated as a cartoon bomb — round, black, painted fuse.
-Nothing about it is meant to look realistic, and it is meant for indoors, at
-a private party, among people who know what it is.
+It is a **toy**, and it looks like one: a cardboard case spray-painted black
+with BOMBSHOT stencilled on the lid, cardboard-tube "dynamite" wrapped in
+blue tape and labelled TRINITRAETOLOBUENO, wires labelled ASUL and BERMELLO,
+and the winner's prize — a tin of chewing gum — sitting right there in the
+box. Nothing about it is meant to look realistic, and it is meant for
+indoors, at a private party, among people who know what it is.
 
 ### How you play
 
@@ -102,6 +121,7 @@ src/
   ha/packages/bomba.yaml     alternative version orchestrated from Home
                              Assistant, kept as a secondary option
   arduino/                   alternative version on an Arduino Nano
+docs/img/                    photos of the finished build
 CLAUDE.md                    full design context and decision log
 ```
 
@@ -160,9 +180,12 @@ fiesta en casa. Sin PCB a medida ni soldador: todo corre sobre un Home
 Assistant Voice PE de serie (ESP32-S3, altavoz, aro de 12 LEDs, botón y
 rueda), más dos cables enchufados a su puerto Grove.
 
-Es un **juguete**, decorado como una bomba de dibujos animados: redonda,
-negra, con la mecha pintada. Nada de estética realista, y pensado para
-usarlo en interior, en una fiesta privada, entre gente que sabe lo que es.
+Es un **juguete**, y lo parece: una caja de cartón pintada de negro con
+BOMBSHOT estarcido en la tapa, "dinamita" de tubos de cartón forrados de
+cinta azul y etiquetados TRINITRAETOLOBUENO, cables marcados ASUL y
+BERMELLO, y el premio del ganador —un bote de chicles— ahí mismo dentro de
+la caja. Nada de estética realista, y pensado para usarlo en interior, en
+una fiesta privada, entre gente que sabe lo que es.
 
 ### Cómo se juega
 
@@ -242,6 +265,7 @@ src/
   ha/packages/bomba.yaml     variante orquestada desde Home Assistant,
                              como opción secundaria
   arduino/                   variante alternativa con Arduino Nano
+docs/img/                    fotos del montaje terminado
 CLAUDE.md                    contexto completo y registro de decisiones
 ```
 

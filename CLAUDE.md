@@ -7,8 +7,17 @@ atrás, sonido de tic-tac y dos cables. Hay que deducir cuál cortar. Si acierta
 se desactiva, si fallas "explota". Para una fiesta **en una casa que no es la
 mía** — el dispositivo no va a estar conectado a mi Home Assistant.
 
-**Es un juguete de interior, decorado en plan bomba de dibujos animados (negra,
-redonda, mecha pintada). Nada de estética realista.**
+**Es un juguete de interior y tiene que parecerlo. Nada de estética
+realista.** La decoración final (montada el 2026-08-14, fotos en `docs/img/`)
+es una **caja de cartón tipo maletín**, con asa, pintada de negro y con
+BOMBSHOT estarcido en la tapa. Dentro: "dinamita" de tubos de cartón forrados
+de cinta azul y sujetos con bridas, etiquetada TNT / TRINITRAETOLOBUENO; los
+dos cables etiquetados ASUL y BERMELLO (las erratas son a propósito); el
+Voice PE con su etiqueta INSTERRUSTOR; y el bote de chicles del premio, a la
+vista. La idea original de bomba redonda de dibujos animados con mecha
+pintada quedó descartada: el formato maletín deja los cables y el aparato
+accesibles desde arriba, que es lo que hace falta para jugar y para rearmar
+entre rondas.
 
 ## Decisiones ya tomadas (no re-abrir sin motivo)
 
@@ -67,6 +76,14 @@ redonda, mecha pintada). Nada de estética realista.**
      `sounds/intro.mp3`) sí viaja en el repo, y el propio
      `standalone.yaml` explica cómo cambiar de una a otra. Si algún día
      se clona el repo en limpio, hay que resolver eso antes de compilar.
+   - **El vídeo de YouTube es otra cosa distinta** (2026-08-14,
+     https://youtu.be/b6ZcncrODek): si la partida grabada llega a la
+     victoria, lleva la canción dentro y eso ya es una publicación, no uso
+     privado. Decisión del usuario, tomada con conocimiento del tema. Lo
+     esperable es un aviso de Content ID (el vídeo sigue visible, se
+     monetiza a favor del propietario); si algún día se bloquea, la salida
+     es resubirlo con esos segundos silenciados o grabado con
+     `sounds/intro.mp3`, la alternativa sintetizada.
    - **El aro de LEDs tiene dos dueños.** `led_ring` (la luz "de cara al
      usuario") y `voice_assistant_leds` (interna) son **dos particiones
      sobre las mismas 12 LEDs físicas**. Sin Home Assistant conectado, el
@@ -283,14 +300,20 @@ redonda, mecha pintada). Nada de estética realista.**
 
 ## Estado actual
 
+**Terminado y en uso (2026-08-14).** Firmware jugado en hardware real dentro
+de la caja ya decorada; fotos y vídeo en el README. Lo que sigue es el
+registro de cómo se llegó hasta aquí — se conserva porque explica *por qué*
+el código es como es, no porque quede trabajo pendiente.
+
 - [x] Audio de cuenta atrás / boom / ok generado (`audio/out/*.mp3`)
 - [x] Clips de dígitos generados (`audio/out/d0.flac`...`d9.flac`, español,
       voz "es" de espeak-ng, mono 48 kHz) — script `audio/generar_digitos.py`.
       Usa `libespeak-ng.so` por `ctypes` en vez del binario `espeak-ng`
       porque esta máquina no tenía permisos para instalarlo con apt; si en
       otra máquina sí está el binario, sirve igual sin tocar el script.
-      Pendiente: escuchar los 10 clips y comprobar que se entienden bien en
-      el altavoz real del Voice PE (por ahora solo verificados por duración).
+      El firmware final ya no los usa (dice el número entero, ver punto 5),
+      así que la comprobación de inteligibilidad que quedaba pendiente dejó
+      de tener sentido.
 - [x] Lógica autónoma completa escrita (`esphome/standalone.yaml`), montada
       sobre la base oficial vía `packages: github://...@dev`
 - [x] **Probado en el hardware real** (2026-08-10): flasheado y jugado de
@@ -313,18 +336,29 @@ redonda, mecha pintada). Nada de estética realista.**
       --without-pip` + `get-pip.py` + `pip install esphome`, con el mismo
       truco a mano en `~/.platformio/penv` porque falta
       `python3.12-venv`/`ensurepip` del sistema y no hay sudo).
-- [ ] **Volver a probar en hardware la versión reescrita** — está
-      compilada y validada, pero todavía no jugada. Es lo siguiente que
-      hay que hacer: `esphome run standalone.yaml --device /dev/ttyACM0`
-      y 6 rondas seguidas (ver el ensayo de más abajo).
-- [ ] Romper la pestaña Grove y soldar/crimpar los cables a la regleta
-      (de momento probado con cables sueltos en breadboard, no en la
-      regleta de tornillo definitiva)
-- [ ] Ensayo completo: 6 rondas seguidas cronometrando el rearme
-- [ ] Decorar la caja
-- [ ] Resolver las dudas abiertas del plan de vuelta al estado stock (abajo)
+- [x] **Vuelta a probar en hardware la versión reescrita** (2026-08-14):
+      jugada de verdad ya dentro de la caja decorada. De ahí salen las
+      fotos y el vídeo.
+- [x] **Cableado definitivo montado** (2026-08-14): pestaña Grove rota y
+      cables ya fijos dentro de la caja, fuera de la breadboard.
+- [x] **Ensayado y jugado.** El objetivo del ensayo (que el rearme entre
+      rondas no mate el ritmo de la fiesta) se dio por cumplido jugando,
+      sin cronometrar seis rondas formalmente.
+- [x] **Caja decorada** (2026-08-14) — ver "Qué es" arriba para el detalle
+      del montaje, y `docs/img/` para las fotos.
+- [x] **Material gráfico publicado** (2026-08-14): tres fotos en
+      `docs/img/` (1600 px, JPEG q82, ~240 KB cada una) enlazadas desde la
+      cabecera del README, más el vídeo de una partida en YouTube:
+      https://youtu.be/b6ZcncrODek — el vídeo **no** vive en el repo (casi
+      1 GB en 4K60 el original), solo el enlace. Las fotos van una sola vez
+      arriba del todo, antes de `## English`, para que sirvan a las dos
+      versiones del README sin duplicarlas.
 - (Opción secundaria, no bloqueante) Paquete de Home Assistant ya escrito en
       `ha/packages/bomba.yaml` por si se usa la variante con HA
+
+**El juguete está terminado.** Lo único que queda no es construcción sino
+desmontaje: devolver el aparato a stock cuando ya no se use más (sección
+siguiente).
 
 ## Plan: vuelta al estado stock (al terminar la fiesta)
 
